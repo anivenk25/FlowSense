@@ -340,6 +340,27 @@ class FlowStateWebview {
                         </div>
                     </div>
 
+                    <!-- Copy/Paste Metrics -->
+<div class="metric-card">
+    <div class="metric-header">
+        <div class="metric-title">Copy/Paste Activity</div>
+        <div class="metric-icon">📋</div>
+    </div>
+    <div class="metric-value">${metrics.copyPasteMetrics.total}</div>
+    <div class="metric-subtitle">
+        ${metrics.copyPasteMetrics.copy} copies • ${
+      metrics.copyPasteMetrics.cut
+    } cuts • ${metrics.copyPasteMetrics.paste} pastes
+    </div>
+    <div class="progress-bar">
+        <div class="progress-value" style="width: ${Math.min(
+          (metrics.copyPasteMetrics.total / 20) * 100,
+          100
+        )}%"></div>
+    </div>
+</div>
+
+
                     <!-- Typing Rhythm -->
                     <div class="metric-card">
                         <div class="metric-header">
@@ -368,7 +389,7 @@ class FlowStateWebview {
     <div class="metric-subtitle">
         ${metrics.windowSwitchCount} window switches • ${
       metrics.tabMetrics.rapid
-    } rapid switches • ${metrics.commandUsage} commands 
+    } tab switches • ${metrics.commandUsage} commands 
     </div>
     <div class="progress-bar">
         <div class="progress-value" style="width: ${Math.min(
@@ -377,7 +398,6 @@ class FlowStateWebview {
         )}%"></div>
     </div>
 </div>
-
                     <!-- Debug Metrics -->
                     <div class="metric-card">
                         <div class="metric-header">
@@ -447,6 +467,8 @@ class FlowStateWebview {
                               )
                               .join("")}
                         </div>
+
+                        
                     </div>
                 </div>
             </div>
@@ -505,7 +527,7 @@ class FlowStateTracker {
         ruby: true,
       },
       tabMetrics: {
-        rapidSwitchThreshold: 2000, // milliseconds
+        rapidSwitchThreshold: 4000, // milliseconds
         penaltyMultiplier: 1.5,
       },
     };
@@ -972,124 +994,166 @@ class FlowStateTracker {
 }
 
 function activate(context) {
-    console.log("Flow state detection extension is now active");
-  
-    const flowTracker = new FlowStateTracker();
-    const webview = new FlowStateWebview(context);
-  
-    // Add tab switch tracking
-    context.subscriptions.push(
-      vscode.window.onDidChangeActiveTextEditor((editor) => {
-        if (editor) {
-          const currentTab = editor.document.fileName;
-          flowTracker.trackTabSwitch(null, currentTab);
-          webview.updateContent(flowTracker);
+  console.log("Flow state detection extension is now active");
+
+  const flowTracker = new FlowStateTracker();
+  const webview = new FlowStateWebview(context);
+
+  // Add copy/paste tracking
+  context.subscriptions.push(
+    vscode.commands.registerTextEditorCommand('editor.action.clipboardCopyAction', async (textEditor) => {
+        const selection = textEditor.selection;
+        if (!selection.isEmpty) {
+            const text = textEditor.document.getText(selection);
+            await vscode.env.clipboard.writeText(text);
+            flowTracker.trackCopyPaste('copy');
+            webview.updateContent(flowTracker);
         }
-      })
-    );
-  
-    context.subscriptions.push(
-      vscode.languages.onDidChangeDiagnostics((e) => {
-        let totalErrors = 0;
-        let totalWarnings = 0;
-  
-        for (const uri of e.uris) {
-          const document = vscode.workspace.textDocuments.find(
-            (doc) => doc.uri.toString() === uri.toString()
-          );
-          const languageId = document ? document.languageId : "unknown";
-          const diagnostics = vscode.languages.getDiagnostics(uri);
-  
-          diagnostics.forEach((diagnostic) => {
-            if (diagnostic.severity === vscode.DiagnosticSeverity.Error) {
-              totalErrors++;
-            } else if (diagnostic.severity === vscode.DiagnosticSeverity.Warning) {
-              totalWarnings++;
-            }
-  
-            flowTracker.trackError(diagnostic, languageId);
-          });
+    })
+);
+
+context.subscriptions.push(
+    vscode.commands.registerTextEditorCommand('editor.action.clipboardCutAction', async (textEditor) => {
+        const selection = textEditor.selection;
+        if (!selection.isEmpty) {
+            const text = textEditor.document.getText(selection);
+            await vscode.env.clipboard.writeText(text);
+            await textEditor.edit(editBuilder => {
+                editBuilder.delete(selection);
+            });
+            flowTracker.trackCopyPaste('cut');
+            webview.updateContent(flowTracker);
         }
-  
-        flowTracker.syntaxErrors = totalErrors;
-        flowTracker.warningCount = totalWarnings;
-  
-        webview.updateContent(flowTracker);
-      })
-    );
-  
-    context.subscriptions.push(
-      vscode.debug.onDidChangeBreakpoints((e) => {
-        if (e.added) flowTracker.breakpoints += e.added.length;
-        if (e.removed) flowTracker.breakpoints -= e.removed.length;
-        webview.updateContent(flowTracker);
-      })
-    );
-  
-    context.subscriptions.push(
-      vscode.window.onDidChangeWindowState((e) => {
-        if (!e.focused) {
-          flowTracker.windowSwitches++;
-          webview.updateContent(flowTracker);
-        }
-      })
-    );
-  
-    let showMetricsDisposable = vscode.commands.registerCommand(
-      "extension.getFlowMetrics",
-      () => {
-        webview.createOrShowPanel(flowTracker);
-      }
-    );
-  
-    let resetMetricsDisposable = vscode.commands.registerCommand(
-      "extension.resetFlowMetrics",
-      () => {
-        flowTracker.reset();
-        webview.updateContent(flowTracker);
-        vscode.window.showInformationMessage("Flow metrics have been reset");
-      }
-    );
-  
-    context.subscriptions.push(showMetricsDisposable);
-    context.subscriptions.push(resetMetricsDisposable);
-  
-    context.subscriptions.push(
-      vscode.workspace.onDidChangeTextDocument((event) => {
-        const now = new Date();
-        const interval = now.getTime() - flowTracker.lastTypeTime.getTime();
-  
-        if (interval < 5000) {
-          flowTracker.typingIntervals.push(interval);
-        }
-  
-        const uri = event.document.uri;
-        const diagnostics = vscode.languages.getDiagnostics(uri);
-  
-        flowTracker.syntaxErrors = diagnostics.filter(
-          (d) => d.severity === vscode.DiagnosticSeverity.Error
-        ).length;
-        flowTracker.warningCount = diagnostics.filter(
-          (d) => d.severity === vscode.DiagnosticSeverity.Warning
-        ).length;
-        flowTracker.problemCount = diagnostics.length;
-  
-        flowTracker.lastTypeTime = now;
-        flowTracker.idleStartTime = now;
-        flowTracker.commandCount++;
-        flowTracker.fileEdits++;
-  
-        event.contentChanges.forEach((change) => {
-          const newLineCount = (change.text.match(/\n/g) || []).length;
-          const removedLineCount = change.range.end.line - change.range.start.line;
-          flowTracker.linesAdded += newLineCount;
-          flowTracker.linesDeleted += removedLineCount;
+    })
+);
+
+context.subscriptions.push(
+    vscode.commands.registerTextEditorCommand('editor.action.clipboardPasteAction', async (textEditor) => {
+        const text = await vscode.env.clipboard.readText();
+        await textEditor.edit(editBuilder => {
+            editBuilder.replace(textEditor.selection, text);
         });
-  
+        flowTracker.trackCopyPaste('paste');
         webview.updateContent(flowTracker);
-      })
-    );
-  }
+    })
+);
+
+  // Add tab switch tracking
+  context.subscriptions.push(
+    vscode.window.onDidChangeActiveTextEditor((editor) => {
+      if (editor) {
+        const currentTab = editor.document.fileName;
+        flowTracker.trackTabSwitch(null, currentTab);
+        webview.updateContent(flowTracker);
+      }
+    })
+  );
+
+  context.subscriptions.push(
+    vscode.languages.onDidChangeDiagnostics((e) => {
+      let totalErrors = 0;
+      let totalWarnings = 0;
+
+      for (const uri of e.uris) {
+        const document = vscode.workspace.textDocuments.find(
+          (doc) => doc.uri.toString() === uri.toString()
+        );
+        const languageId = document ? document.languageId : "unknown";
+        const diagnostics = vscode.languages.getDiagnostics(uri);
+
+        diagnostics.forEach((diagnostic) => {
+          if (diagnostic.severity === vscode.DiagnosticSeverity.Error) {
+            totalErrors++;
+          } else if (
+            diagnostic.severity === vscode.DiagnosticSeverity.Warning
+          ) {
+            totalWarnings++;
+          }
+
+          flowTracker.trackError(diagnostic, languageId);
+        });
+      }
+
+      flowTracker.syntaxErrors = totalErrors;
+      flowTracker.warningCount = totalWarnings;
+
+      webview.updateContent(flowTracker);
+    })
+  );
+
+  context.subscriptions.push(
+    vscode.debug.onDidChangeBreakpoints((e) => {
+      if (e.added) flowTracker.breakpoints += e.added.length;
+      if (e.removed) flowTracker.breakpoints -= e.removed.length;
+      webview.updateContent(flowTracker);
+    })
+  );
+
+  context.subscriptions.push(
+    vscode.window.onDidChangeWindowState((e) => {
+      if (!e.focused) {
+        flowTracker.windowSwitches++;
+        webview.updateContent(flowTracker);
+      }
+    })
+  );
+
+  let showMetricsDisposable = vscode.commands.registerCommand(
+    "extension.getFlowMetrics",
+    () => {
+      webview.createOrShowPanel(flowTracker);
+    }
+  );
+
+  let resetMetricsDisposable = vscode.commands.registerCommand(
+    "extension.resetFlowMetrics",
+    () => {
+      flowTracker.reset();
+      webview.updateContent(flowTracker);
+      vscode.window.showInformationMessage("Flow metrics have been reset");
+    }
+  );
+
+  context.subscriptions.push(showMetricsDisposable);
+  context.subscriptions.push(resetMetricsDisposable);
+
+  context.subscriptions.push(
+    vscode.workspace.onDidChangeTextDocument((event) => {
+      const now = new Date();
+      const interval = now.getTime() - flowTracker.lastTypeTime.getTime();
+
+      if (interval < 5000) {
+        flowTracker.typingIntervals.push(interval);
+      }
+
+      const uri = event.document.uri;
+      const diagnostics = vscode.languages.getDiagnostics(uri);
+
+      flowTracker.syntaxErrors = diagnostics.filter(
+        (d) => d.severity === vscode.DiagnosticSeverity.Error
+      ).length;
+      flowTracker.warningCount = diagnostics.filter(
+        (d) => d.severity === vscode.DiagnosticSeverity.Warning
+      ).length;
+      flowTracker.problemCount = diagnostics.length;
+
+      flowTracker.lastTypeTime = now;
+      flowTracker.idleStartTime = now;
+      flowTracker.commandCount++;
+      flowTracker.fileEdits++;
+
+      event.contentChanges.forEach((change) => {
+        const newLineCount = (change.text.match(/\n/g) || []).length;
+        const removedLineCount =
+          change.range.end.line - change.range.start.line;
+        flowTracker.linesAdded += newLineCount;
+        flowTracker.linesDeleted += removedLineCount;
+      });
+
+      webview.updateContent(flowTracker);
+    })
+  );
+}
 function deactivate() {}
 
 module.exports = {
