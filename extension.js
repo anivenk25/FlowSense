@@ -1,5 +1,7 @@
 const vscode = require("vscode");
 
+
+
 class FlowStateWebview {
   constructor(context) {
     this.context = context;
@@ -86,6 +88,7 @@ class FlowStateWebview {
         });
     }
   }
+
 
   getWebviewContent(metrics) {
     const errorSummary = metrics.getErrorSummary();
@@ -616,7 +619,77 @@ class FlowStateTracker {
       sequential: 0,
       lastTabs: [],
     };
+
+
   }
+
+  async saveSessionToDatabase(flowTracker) {
+
+
+    const metrics = flowTracker.getMetrics();
+
+    console.log("Session data to be saved:", metrics);
+
+    const sessionData = {
+      timestamp: new Date(),
+      userId: this.userId||'123', // Assuming you have this in your frontend logic
+      focusScore: metrics.focusScore || 0,
+      currentStreak: metrics.currentStreak || 0,
+      longestStreak: metrics.longestStreak || 0,
+      sessionDuration: metrics.sessionDuration || 0,
+      activeFileDuration: metrics.activeFileDuration || 0,
+      idleTime: metrics.idleTime || 0,
+      typingRhythm: metrics.typingRhythm || 0,
+      tabMetrics: {
+        total: metrics.tabMetrics?.total || 0,
+        rapid: metrics.tabMetrics?.rapid || 0,
+        patterns: {
+          backAndForth: metrics.tabMetrics?.patterns?.backAndForth || 0,
+          sequential: metrics.tabMetrics?.patterns?.sequential || 0
+        }
+      },
+      copyPasteMetrics: {
+        total: metrics.copyPasteMetrics?.total || 0,
+        copy: metrics.copyPasteMetrics?.copy || 0,
+        cut: metrics.copyPasteMetrics?.cut || 0,
+        paste: metrics.copyPasteMetrics?.paste || 0
+      },
+      errorMetrics: {
+        syntaxErrors: metrics.syntaxErrors || 0,
+        warningCount: metrics.warningCount || 0,
+        problemCount: metrics.problemCount || 0
+      },
+      codeMetrics: {
+        linesAdded: metrics.linesAdded || 0,
+        linesDeleted: metrics.linesDeleted || 0,
+        fileEdits: metrics.fileEdits || 0,
+        codeComplexity: metrics.codeComplexity || 0,
+        testCoverage: metrics.testCoverage || 0
+      },
+      productivityStatus: metrics.productivityStatus || "Unknown",
+      achievements: metrics.achievements || [] // Should be an array
+    };
+  
+    try {
+      const response = await fetch("http://localhost:5000/api/save-session", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify(sessionData)
+      });
+  
+      if (!response.ok) {
+        throw new Error(`Failed to save session data: ${response.statusText}`);
+      }
+  
+      const result = await response.json();
+      console.log("Session data saved successfully:", result);
+    } catch (err) {
+      console.error("Error saving session data:", err);
+    }
+  }
+  
 
   trackTabSwitch(fromTab, toTab) {
     const now = new Date();
@@ -991,6 +1064,9 @@ class FlowStateTracker {
     if (this.focusScore >= low) return "Focused 🎯";
     return "Getting Started 🌱";
   }
+
+
+  
 }
 
 function activate(context) {
@@ -1107,12 +1183,17 @@ context.subscriptions.push(
 
   let resetMetricsDisposable = vscode.commands.registerCommand(
     "extension.resetFlowMetrics",
-    () => {
+   async () => {
+      await flowTracker.saveSessionToDatabase(flowTracker);
       flowTracker.reset();
       webview.updateContent(flowTracker);
       vscode.window.showInformationMessage("Flow metrics have been reset");
     }
   );
+
+  setInterval(async () => {
+    await flowTracker.saveSessionToDatabase(flowTracker);
+  }, 300000);
 
   context.subscriptions.push(showMetricsDisposable);
   context.subscriptions.push(resetMetricsDisposable);
