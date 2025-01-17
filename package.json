@@ -1,0 +1,69 @@
+{
+  "name": "flowsense",
+  "displayName": "FlowSense",
+  "description": "Flow state and productivity tracking for developers",
+  "version": "0.0.1",
+  "engines": {
+    "vscode": "^1.96.0"
+  },
+  "categories": [
+    "Other",
+    "Visualization",
+    "Programming Languages"
+  ],
+  "activationEvents": [
+    "onStartupFinished"
+  ],
+  "main": "./extension.js",
+  "contributes": {
+    "commands": [
+      {
+        "command": "extension.getFlowMetrics",
+        "title": "FlowSense: Show Flow State Metrics"
+      },
+      {
+        "command": "extension.resetFlowMetrics",
+        "title": "FlowSense: Reset Flow Metrics"
+      }
+    ],
+    "configuration": {
+      "title": "FlowSense",
+      "properties": {
+        "flowsense.focusThreshold": {
+          "type": "number",
+          "default": 70,
+          "description": "Focus score threshold for flow state detection"
+        },
+        "flowsense.breakInterval": {
+          "type": "number",
+          "default": 45,
+          "description": "Interval in minutes before suggesting a break"
+        },
+        "flowsense.typingConsistencyWeight": {
+          "type": "number",
+          "default": 0.3,
+          "description": "Weight factor for typing consistency in focus score calculation"
+        },
+        "flowsense.errorPenalty": {
+          "type": "number",
+          "default": 5,
+          "description": "Penalty points for each error in focus score calculation"
+        }
+      }
+    }
+  },
+  "scripts": {
+    "lint": "eslint .",
+    "pretest": "npm run lint",
+    "test": "node ./test/runTest.js"
+  },
+  "devDependencies": {
+    "@types/vscode": "^1.96.0",
+    "@types/mocha": "^10.0.10",
+    "@types/node": "20.x",
+    "eslint": "^8.56.0",
+    "@vscode/test-cli": "^0.0.10",
+    "@vscode/test-electron": "^2.4.1",
+    "mocha": "^10.3.0"
+  }
+}
