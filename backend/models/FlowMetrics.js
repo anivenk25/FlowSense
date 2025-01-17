@@ -41,7 +41,25 @@ const flowMetricsSchema = new mongoose.Schema({
     type: { type: String, required: true },
     description: { type: String, required: true },
     timestamp: { type: Date, default: Date.now }
-  }]
+  }],
+  errorSummary: {
+    total: { type: Number, required: true },
+    bySeverity: {
+      error: { type: Number, required: true },
+      warning: { type: Number, required: true },
+      info: { type: Number, required: true }
+    },
+    byLanguage: { type: Map, of: Object, required: true }, // Store languages and error counts
+    recent: [
+      {
+        timestamp: { type: Date, required: true },
+        message: { type: String, required: true },
+        severity: { type: Number, required: true },
+        line: { type: Number, required: true },
+        column: { type: Number, required: true },
+      }
+    ]
+  }
 });
 
 module.exports = mongoose.model('FlowMetrics', flowMetricsSchema);

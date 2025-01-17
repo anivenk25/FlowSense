@@ -49,20 +49,32 @@ class FlowStateWebview {
     }, 1000);
 
     this.panel.webview.onDidReceiveMessage(
-      (message) => {
+      async (message) => {  // Make the callback async
         switch (message.command) {
           case "reset":
-            flowTracker.reset();
-            this.updateContent(flowTracker);
-            vscode.window.showInformationMessage(
-              "Flow metrics have been reset"
-            );
+            try {
+              // Save session data to the database
+              await flowTracker.saveSessionToDatabase(flowTracker);
+    
+              // Reset the metrics
+              flowTracker.reset();
+    
+              // Update the content
+              this.updateContent(flowTracker);
+    
+              // Show confirmation message
+              vscode.window.showInformationMessage("Flow metrics have been reset");
+            } catch (error) {
+              console.error("Error resetting flow metrics:", error);
+              vscode.window.showErrorMessage("An error occurred while resetting flow metrics.");
+            }
             break;
         }
       },
       undefined,
       this.context.subscriptions
     );
+    
   }
 
   updateContent(flowTracker) {
@@ -92,6 +104,7 @@ class FlowStateWebview {
 
   getWebviewContent(metrics) {
     const errorSummary = metrics.getErrorSummary();
+    console.log("Error Summary:", errorSummary);
 
     return `<!DOCTYPE html>
         <html lang="en">
@@ -625,14 +638,14 @@ class FlowStateTracker {
 
   async saveSessionToDatabase(flowTracker) {
 
-
     const metrics = flowTracker.getMetrics();
-
+    const errorSummary = flowTracker.getErrorSummary();
+  
     console.log("Session data to be saved:", metrics);
-
+  
     const sessionData = {
       timestamp: new Date(),
-      userId: this.userId||'123', // Assuming you have this in your frontend logic
+      userId: this.userId || '123',
       focusScore: metrics.focusScore || 0,
       currentStreak: metrics.currentStreak || 0,
       longestStreak: metrics.longestStreak || 0,
@@ -667,7 +680,8 @@ class FlowStateTracker {
         testCoverage: metrics.testCoverage || 0
       },
       productivityStatus: metrics.productivityStatus || "Unknown",
-      achievements: metrics.achievements || [] // Should be an array
+      achievements: metrics.achievements || [], 
+      errorSummary: errorSummary || {}  
     };
   
     try {
@@ -689,6 +703,7 @@ class FlowStateTracker {
       console.error("Error saving session data:", err);
     }
   }
+  
   
 
   trackTabSwitch(fromTab, toTab) {
@@ -1184,7 +1199,7 @@ context.subscriptions.push(
   let resetMetricsDisposable = vscode.commands.registerCommand(
     "extension.resetFlowMetrics",
    async () => {
-      await flowTracker.saveSessionToDatabase(flowTracker);
+
       flowTracker.reset();
       webview.updateContent(flowTracker);
       vscode.window.showInformationMessage("Flow metrics have been reset");
