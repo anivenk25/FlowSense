@@ -54,5 +54,5 @@ for timestamp in timestamps:
 
 # Convert to DataFrame
 df = pd.DataFrame(data)
-df.to_csv('synthetic_developer_data.csv', index=False)
+df.to_csv('new_developer_data.csv', index=False)
 print("Synthetic data saved to 'synthetic_developer_data.csv'")
