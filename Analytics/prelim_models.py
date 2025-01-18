@@ -15,9 +15,11 @@
 # entry-point = "prelim_models.py"
 # ///
 
+import matplotlib
+matplotlib.use('TkAgg')  # Use an interactive backend
+import matplotlib.pyplot as plt
 import pandas as pd
 import numpy as np
-import matplotlib.pyplot as plt
 import plotly.express as px
 import plotly.graph_objects as go
 from sklearn.ensemble import RandomForestRegressor
@@ -113,7 +115,7 @@ plt.xlabel('Date')
 plt.ylabel('Metric Value')
 plt.legend()
 plt.grid()
-plt.show()
+plt.show()  # Display the plot
 
 # Correlation Analysis
 correlation_matrix = df[numeric_columns].corr()
@@ -123,7 +125,7 @@ plt.colorbar()
 plt.xticks(range(len(numeric_columns)), numeric_columns, rotation=45)
 plt.yticks(range(len(numeric_columns)), numeric_columns)
 plt.title('Correlation Matrix of Productivity Metrics')
-plt.show()
+plt.show()  # Display the plot
 
 # Anomaly Detection
 anomalies = df[(df['focus_score'] < df['focus_score'].quantile(0.05)) | (df['focus_score'] > df['focus_score'].quantile(0.95))]
@@ -158,7 +160,54 @@ fig = go.Figure()
 for metric in metrics:
     fig.add_trace(go.Scatter(x=df.index, y=df[metric], name=metric.replace('_', ' ').title()))
 fig.update_layout(title='Productivity Metrics Over Time', xaxis_title='Time', yaxis_title='Metric Value')
-fig.show()
+fig.write_html("productivity_metrics.html")  # Save as HTML
+print("Plot saved as productivity_metrics.html. Open it in a browser to view.")
+
+# Time-Series Forecasting with Prophet
+prophet_df = df[['timestamp', 'typing_rhythm']].rename(columns={'timestamp': 'ds', 'typing_rhythm': 'y'})
+prophet_model = Prophet()
+prophet_model.fit(prophet_df)
+
+# Save the Prophet model
+prophet_model_filename = 'saved_models/prophet_model.pkl'
+joblib.dump(prophet_model, prophet_model_filename)
+print(f"Prophet model saved to {prophet_model_filename}")
+
+# Make predictions
+future = prophet_model.make_future_dataframe(periods=24, freq='H')
+forecast = prophet_model.predict(future)
+
+# Plot forecast
+prophet_model.plot(forecast)
+plt.title('Typing Rhythm Forecast')
+plt.show()  # Display the plot
+
+# Clustering with K-Means
+X = df[['typing_rhythm', 'tab_switches', 'errors', 'debugging', 'active_file_duration', 'idle_time']]
+kmeans = KMeans(n_clusters=3)
+df['cluster'] = kmeans.fit_predict(X)
+
+# Save the K-Means model
+kmeans_model_filename = 'saved_models/kmeans_model.pkl'
+joblib.dump(kmeans, kmeans_model_filename)
+print(f"K-Means model saved to {kmeans_model_filename}")
+
+# Visualize clusters
+plt.figure(figsize=(10, 6))
+for cluster in range(3):
+    cluster_data = df[df['cluster'] == cluster]
+    plt.scatter(cluster_data['hour'], cluster_data['focus_score'], label=f'Cluster {cluster}')
+plt.title('Coding Session Clusters')
+plt.xlabel('Hour of Day')
+plt.ylabel('Focus Score')
+plt.legend()
+plt.grid()
+plt.show()  # Display the plot
+
+# Feature Importance with SHAP
+explainer = shap.TreeExplainer(model)
+shap_values = explainer.shap_values(X_train)
+shap.summary_plot(shap_values, X_train, feature_names=features)
 
 # Exportable PDF Report
 pdf = FPDF()
