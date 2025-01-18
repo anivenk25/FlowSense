@@ -1567,7 +1567,7 @@ class FlowStateTracker {
   }
 
   trackTabSwitch(fromTab, toTab) {
-    const now = new Date();
+    let now = new Date();
     const timeSinceLastSwitch = now - this.lastTabSwitchTime;
 
     // Track rapid switches
@@ -1688,75 +1688,124 @@ class FlowStateTracker {
     };
   }
 
-  updateFocusScore() {
-    let score = 100;
 
-    const rapidSwitchPenalty =
-      this.rapidTabSwitches * this.settings.tabMetrics.penaltyMultiplier;
-    score -= Math.min(
-      30,
-      this.tabSwitches * this.settings.tabSwitchPenalty + rapidSwitchPenalty
-    );
+  async updateFocusScore() {
+    const now = new Date();
+    
+    const sessionDuration = (now.getTime() - this.sessionStartTime.getTime()) / 1000 / 60;
+    const activeFileDuration = (now.getTime() - this.activeFileStartTime.getTime()) / 1000 / 60;
+    const idleTime = (now.getTime() - this.idleStartTime.getTime()) / 1000 / 60;
+    const typingRhythm = this.calculateTypingRhythm();
 
-    score -= Math.min(30, this.tabSwitches * this.settings.tabSwitchPenalty);
-    score -= Math.min(
-      20,
-      this.windowSwitches * this.settings.windowSwitchPenalty
-    );
-    score -= Math.min(20, this.syntaxErrors * this.settings.errorPenalty);
-    score -= Math.min(20, this.problemCount * this.settings.errorPenalty);
-
-    const rhythmScore = this.calculateTypingRhythm();
-    score += (rhythmScore - 100) * this.settings.typingConsistencyWeight;
-
-    score += Math.min(10, this.currentFocusStreak * this.settings.streakBonus);
-
-    score +=
-      (this.codeQualityScore - 100) *
-      this.settings.codeQualityMetrics.cleanCodeScore;
-
-    this.focusScore = Math.max(0, Math.min(100, score));
-
-    this.focusHistory.push({
-      timestamp: new Date(),
-      score: this.focusScore,
+    console.log('Current metrics before update:', {
+        currentStreak: this.currentFocusStreak,
+        longestStreak: this.longestFocusStreak,
+        sessionDuration,
+        activeFileDuration,
+        idleTime,
+        typingRhythm,
+        focusScore: this.focusScore
     });
 
-    const now = new Date();
-    const timeSinceLastUpdate =
-      (now.getTime() - this.lastStreakUpdate.getTime()) / 1000;
+    try {
+        const response = await fetch("http://127.0.0.1:8000/predict/focus", {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json",
+            },
+            body: JSON.stringify({
+                currentStreak: this.currentFocusStreak,
+                longestStreak: this.longestFocusStreak,
+                sessionDuration: sessionDuration,
+                activeFileDuration: activeFileDuration,
+                idleTime: idleTime,
+                typingRhythm: typingRhythm,
+            }),
+        });
 
-    if (timeSinceLastUpdate >= 60) {
-      if (this.focusScore > this.settings.focusThreshold) {
-        this.currentFocusStreak += 1;
-        if (this.currentFocusStreak > this.longestFocusStreak) {
-          this.longestFocusStreak = this.currentFocusStreak;
-          this.checkForAchievements();
+        const data = await response.json();
+        if (response.ok) {
+            this.focusScore = data.focus_score;
+            console.log("Focus score from API:", this.focusScore);
+        } else {
+            console.error("API Error: ", data);
         }
-      } else {
-        if (this.currentFocusStreak > 0) {
-          this.focusDips.push({
-            timestamp: new Date(),
-            duration: this.currentFocusStreak,
-          });
+    } catch (error) {
+        console.error("Fetch Error: ", error);
+        // Fallback calculation if API fails
+        this.focusScore = Math.max(0, Math.min(100, 
+            100 - (idleTime * 2) + 
+            (this.currentFocusStreak * 0.5) - 
+            (this.tabSwitches * 0.2) - 
+            (this.windowSwitches * 0.5)
+        ));
+    }
+
+    this.focusHistory.push({
+        timestamp: now,
+        score: this.focusScore,
+    });
+
+    // Update streaks more frequently (every 30 seconds)
+    const timeSinceLastUpdate = (now.getTime() - this.lastStreakUpdate.getTime()) / 1000;
+
+    if (timeSinceLastUpdate >= 30) { // Update every 30 seconds
+        const isInFocusState = this.focusScore > this.settings.focusThreshold || 
+                              (activeFileDuration > 0 && idleTime < 1);
+
+        console.log('Focus state check:', {
+            isInFocusState,
+            focusScore: this.focusScore,
+            threshold: this.settings.focusThreshold,
+            activeFileDuration,
+            idleTime
+        });
+
+        if (isInFocusState) {
+            // Convert the 30-second interval to minutes (0.5 minutes)
+            this.currentFocusStreak += 0.5;
+            console.log('Incrementing streak to:', this.currentFocusStreak);
+            
+            if (this.currentFocusStreak > this.longestFocusStreak) {
+                this.longestFocusStreak = this.currentFocusStreak;
+                console.log('New longest streak:', this.longestFocusStreak);
+                this.checkForAchievements();
+            }
+        } else {
+            if (this.currentFocusStreak > 0) {
+                this.focusDips.push({
+                    timestamp: now,
+                    duration: this.currentFocusStreak,
+                });
+                console.log('Resetting streak from:', this.currentFocusStreak);
+            }
+            this.currentFocusStreak = 0;
         }
-        this.currentFocusStreak = 0;
-      }
-      this.lastStreakUpdate = now;
+        
+        this.lastStreakUpdate = now;
     }
 
     if (
-      this.focusScore > 90 &&
-      (!this.peakProductivityTime ||
-        now.getTime() - this.peakProductivityTime.getTime() > 1000 * 60 * 15)
+        this.focusScore > 90 &&
+        (!this.peakProductivityTime ||
+            now.getTime() - this.peakProductivityTime.getTime() > 1000 * 60 * 15)
     ) {
-      this.productivityPeaks.push({
-        timestamp: now,
-        score: this.focusScore,
-      });
-      this.peakProductivityTime = now;
+        this.productivityPeaks.push({
+            timestamp: now,
+            score: this.focusScore,
+        });
+        this.peakProductivityTime = now;
     }
-  }
+
+    console.log('Updated metrics:', {
+        currentStreak: this.currentFocusStreak,
+        longestStreak: this.longestFocusStreak,
+        focusScore: this.focusScore
+    });
+}
+
+
+
 
   calculateTypingRhythm() {
     if (this.typingIntervals.length < 2) return 100;

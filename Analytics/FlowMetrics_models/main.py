@@ -1,11 +1,9 @@
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
+from typing import List
 import pandas as pd
 import joblib
 from sklearn.preprocessing import StandardScaler
-
-# Initialize FastAPI app
-app = FastAPI()
 
 # Load all saved models
 focus_model = joblib.load('focus_score_model.pkl')
@@ -18,124 +16,153 @@ complexity_model = joblib.load('code_complexity_model.pkl')
 session_model = joblib.load('session_duration_model.pkl')
 severity_model = joblib.load('error_severity_model.pkl')
 
-# Define input data schema using Pydantic
-class UserInput(BaseModel):
-    currentStreak: int
-    longestStreak: int
-    sessionDuration: int
-    activeFileDuration: int
-    idleTime: int
-    typingRhythm: int
-    tabMetrics_total: int
-    tabMetrics_rapid: int
-    codeMetrics_linesAdded: int
-    codeMetrics_linesDeleted: int
-    codeMetrics_fileEdits: int
-    codeMetrics_codeComplexity: int
-    codeMetrics_testCoverage: int
-    errorMetrics_problemCount: int
-    errorSummary_bySeverity_error: int
-    errorSummary_bySeverity_warning: int
-    errorSummary_bySeverity_info: int
-    achievements_0: str
+# Initialize FastAPI app
+app = FastAPI()
 
-# Helper function to preprocess the data and make predictions
-def get_predictions(data: pd.DataFrame):
-    # Preprocess new data (same as training preprocessing)
-    numerical_features = [
-        'currentStreak', 'longestStreak', 'sessionDuration', 'activeFileDuration', 
-        'idleTime', 'typingRhythm', 'tabMetrics_total', 'tabMetrics_rapid', 
-        'codeMetrics_linesAdded', 'codeMetrics_linesDeleted', 'codeMetrics_fileEdits', 
-        'codeMetrics_codeComplexity', 'codeMetrics_testCoverage'
-    ]
-    scaler = StandardScaler()
-    data[numerical_features] = scaler.fit_transform(data[numerical_features])
+# Preprocessing setup
+numerical_features = [
+    'currentStreak', 'longestStreak', 'sessionDuration', 'activeFileDuration', 
+    'idleTime', 'typingRhythm', 'tabMetrics_total', 'tabMetrics_rapid', 
+    'codeMetrics_linesAdded', 'codeMetrics_linesDeleted', 'codeMetrics_fileEdits', 
+    'codeMetrics_codeComplexity', 'codeMetrics_testCoverage'
+]
+scaler = StandardScaler()
 
-    # Encode categorical variables
-    data['userId'] = 0  # Example user ID
-    data['hasAchievement'] = data['achievements_0'].apply(lambda x: 1 if x != 'No Achievement' else 0)
 
-    # Make predictions using all models
-    focus_score = focus_model.predict(data[['currentStreak', 'longestStreak', 'sessionDuration', 'activeFileDuration', 'idleTime', 'typingRhythm']])
-    code_quality = quality_model.predict(data[['codeMetrics_linesAdded', 'codeMetrics_linesDeleted', 'codeMetrics_fileEdits', 'codeMetrics_codeComplexity', 'codeMetrics_testCoverage']])
-    error_count = error_model.predict(data[['codeMetrics_linesAdded', 'codeMetrics_linesDeleted', 'codeMetrics_fileEdits', 'codeMetrics_codeComplexity', 'codeMetrics_testCoverage']])
-    productivity_cluster = productivity_model.predict(data[['sessionDuration', 'activeFileDuration', 'idleTime', 'typingRhythm']])
-    typing_rhythm_impact = typing_model.predict(data[['typingRhythm', 'sessionDuration', 'activeFileDuration', 'idleTime']])
-    tab_switching_impact = tab_model.predict(data[['tabMetrics_total', 'tabMetrics_rapid']])
-    complexity_impact = complexity_model.predict(data[['codeMetrics_codeComplexity', 'codeMetrics_testCoverage']])
-    session_impact = session_model.predict(data[['sessionDuration', 'activeFileDuration', 'idleTime']])
-    severity_cluster = severity_model.predict(data[['errorSummary_bySeverity_error', 'errorSummary_bySeverity_warning', 'errorSummary_bySeverity_info']])
 
+# Input schema
+from typing import Optional
+from pydantic import BaseModel
+
+from typing import Optional
+from pydantic import BaseModel
+
+class InputData(BaseModel):
+    currentStreak: Optional[float] = None
+    longestStreak: Optional[float] = None
+    sessionDuration: Optional[float] = None
+    activeFileDuration: Optional[float] = None
+    idleTime: Optional[float] = None
+    typingRhythm: Optional[float] = None
+    tabMetrics_total: Optional[float] = None
+    tabMetrics_rapid: Optional[float] = None
+    codeMetrics_linesAdded: Optional[float] = None
+    codeMetrics_linesDeleted: Optional[float] = None
+    codeMetrics_fileEdits: Optional[float] = None
+    codeMetrics_codeComplexity: Optional[float] = None
+    codeMetrics_testCoverage: Optional[float] = None
+    errorSummary_bySeverity_error: Optional[float] = None
+    errorSummary_bySeverity_warning: Optional[float] = None
+    errorSummary_bySeverity_info: Optional[float] = None
+    achievements_0: Optional[str] = None
+
+    class Config:
+        from_attributes = True
+
+
+
+# Home endpoint
+@app.get("/")
+def home():
+    return {"message": "Welcome to the Productivity Insights API"}
+
+# Helper function for preprocessing
+def preprocess_data(data: InputData):
+    input_df = pd.DataFrame([data.dict()])
+    input_df.columns = [col.replace('.', '_') for col in input_df.columns]
+    try:
+        input_df[numerical_features] = scaler.fit_transform(input_df[numerical_features])
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"Error in preprocessing: {str(e)}")
+    input_df['hasAchievement'] = input_df['achievements_0'].apply(lambda x: 1 if x != 'No Achievement' else 0)
+    return input_df
+
+# Endpoint for focus score
+@app.post("/predict/focus/")
+def predict_focus(data: InputData):
+    input_df = preprocess_data(data)
+    focus_score = focus_model.predict(input_df[['currentStreak', 'longestStreak', 'sessionDuration', 'activeFileDuration', 'idleTime', 'typingRhythm']])[0]
     return {
-        "focus_score": focus_score[0],
-        "code_quality": "High" if code_quality[0] == 1 else "Low",
-        "error_count": error_count[0],
-        "productivity_cluster": ["Low", "Medium", "High"][productivity_cluster[0]],
-        "typing_rhythm_impact": typing_rhythm_impact[0],
-        "tab_switching_impact": tab_switching_impact[0],
-        "complexity_impact": complexity_impact[0],
-        "session_impact": session_impact[0],
-        "severity_cluster": ["Low", "Medium", "High"][severity_cluster[0]]
+        "focus_score": round(focus_score, 2),
+        "focus_insights": "Low focus score. Reduce idle time and tab switching." if focus_score < 50 else "Good focus score. Maintain your workflow!"
     }
 
-@app.post("/predict/")
-def predict(user_input: UserInput):
-    # Convert user input to DataFrame
-    data = pd.DataFrame([user_input.dict()])
-    
-    # Get predictions
-    predictions = get_predictions(data)
-    
-    # Generate actionable insights
-    insights = {}
+# Endpoint for code quality
+@app.post("/predict/code_quality/")
+def predict_code_quality(data: InputData):
+    input_df = preprocess_data(data)
+    code_quality = quality_model.predict(input_df[['codeMetrics_linesAdded', 'codeMetrics_linesDeleted', 'codeMetrics_fileEdits', 'codeMetrics_codeComplexity', 'codeMetrics_testCoverage']])[0]
+    return {
+        "code_quality": "High" if code_quality == 1 else "Low",
+        "code_quality_insights": "Focus on reducing complexity and increasing test coverage." if code_quality == 0 else "Keep up the good work."
+    }
 
-    # Focus Score Insights
-    insights["Focus Score"] = predictions["focus_score"]
-    if predictions["focus_score"] < 50:
-        insights["Focus Score Insight"] = "Your focus score is low. Try reducing idle time and avoiding rapid tab switching."
-    else:
-        insights["Focus Score Insight"] = "Your focus score is good. Keep maintaining your workflow!"
+# Endpoint for error count prediction
+@app.post("/predict/error_count/")
+def predict_error_count(data: InputData):
+    input_df = preprocess_data(data)
+    error_count = error_model.predict(input_df[['codeMetrics_linesAdded', 'codeMetrics_linesDeleted', 'codeMetrics_fileEdits', 'codeMetrics_codeComplexity', 'codeMetrics_testCoverage']])[0]
+    return {
+        "predicted_error_count": round(error_count, 2),
+        "error_insights": "High error count predicted. Review code and write more unit tests." if error_count > 10 else "Error count is manageable."
+    }
 
-    # Code Quality Insights
-    insights["Code Quality"] = predictions["code_quality"]
-    if predictions["code_quality"] == "Low":
-        insights["Code Quality Insight"] = "Your code quality needs improvement. Focus on reducing code complexity and increasing test coverage."
+# Endpoint for productivity cluster
+@app.post("/predict/productivity/")
+def predict_productivity(data: InputData):
+    input_df = preprocess_data(data)
+    productivity_cluster = productivity_model.predict(input_df[['sessionDuration', 'activeFileDuration', 'idleTime', 'typingRhythm']])[0]
+    return {
+        "productivity_cluster": "Low" if productivity_cluster == 0 else "Medium" if productivity_cluster == 1 else "High",
+        "productivity_insights": "Low productivity. Try shorter, focused sessions." if productivity_cluster == 0 else "Maintain your productivity!"
+    }
 
-    # Error Count Insights
-    insights["Predicted Error Count"] = predictions["error_count"]
-    if predictions["error_count"] > 10:
-        insights["Error Count Insight"] = "High error count predicted. Review your code changes carefully and write more unit tests."
+# Endpoint for typing rhythm impact
+@app.post("/predict/typing_rhythm/")
+def predict_typing_rhythm(data: InputData):
+    input_df = preprocess_data(data)
+    typing_rhythm_impact = typing_model.predict(input_df[['typingRhythm', 'sessionDuration', 'activeFileDuration', 'idleTime']])[0]
+    return {
+        "typing_rhythm_impact": round(typing_rhythm_impact, 2),
+        "typing_rhythm_insights": "Improve typing consistency." if typing_rhythm_impact < 50 else "Your typing rhythm is fine."
+    }
 
-    # Productivity Insights
-    insights["Productivity Cluster"] = predictions["productivity_cluster"]
-    if predictions["productivity_cluster"] == "Low":
-        insights["Productivity Insight"] = "Your productivity is low. Try scheduling shorter, more focused work sessions."
+# Endpoint for tab switching impact
+@app.post("/predict/tab_switching/")
+def predict_tab_switching(data: InputData):
+    input_df = preprocess_data(data)
+    tab_switching_impact = tab_model.predict(input_df[['tabMetrics_total', 'tabMetrics_rapid']])[0]
+    return {
+        "tab_switching_impact": round(tab_switching_impact, 2),
+        "tab_switching_insights": "Avoid unnecessary tab switching." if tab_switching_impact < 50 else "Tab switching is not affecting your focus."
+    }
 
-    # Typing Rhythm Insights
-    insights["Typing Rhythm Impact"] = predictions["typing_rhythm_impact"]
-    if predictions["typing_rhythm_impact"] < 50:
-        insights["Typing Rhythm Insight"] = "Your typing rhythm is affecting your focus. Try maintaining a consistent typing speed."
+# Endpoint for code complexity impact
+@app.post("/predict/complexity/")
+def predict_complexity(data: InputData):
+    input_df = preprocess_data(data)
+    complexity_impact = complexity_model.predict(input_df[['codeMetrics_codeComplexity', 'codeMetrics_testCoverage']])[0]
+    return {
+        "complexity_impact": round(complexity_impact, 2),
+        "complexity_insights": "High code complexity. Refactor your code." if complexity_impact > 7 else "Code complexity is manageable."
+    }
 
-    # Tab Switching Insights
-    insights["Tab Switching Impact"] = predictions["tab_switching_impact"]
-    if predictions["tab_switching_impact"] < 50:
-        insights["Tab Switching Insight"] = "Excessive tab switching is reducing your focus. Avoid unnecessary tab switches."
+# Endpoint for session duration impact
+@app.post("/predict/session/")
+def predict_session(data: InputData):
+    input_df = preprocess_data(data)
+    session_impact = session_model.predict(input_df[['sessionDuration', 'activeFileDuration', 'idleTime']])[0]
+    return {
+        "session_impact": round(session_impact, 2),
+        "session_insights": "Short sessions detected. Try longer work sessions." if session_impact < 50 else "Your session durations are effective."
+    }
 
-    # Code Complexity Insights
-    insights["Code Complexity Impact"] = predictions["complexity_impact"]
-    if predictions["complexity_impact"] > 7:
-        insights["Code Complexity Insight"] = "High code complexity detected. Consider refactoring your code to improve maintainability."
-
-    # Session Duration Insights
-    insights["Session Duration Impact"] = predictions["session_impact"]
-    if predictions["session_impact"] < 50:
-        insights["Session Duration Insight"] = "Your session duration is too short. Try longer, uninterrupted work sessions."
-
-    # Error Severity Insights
-    insights["Error Severity Cluster"] = predictions["severity_cluster"]
-    if predictions["severity_cluster"] == "High":
-        insights["Error Severity Insight"] = "High-severity errors detected. Prioritize fixing these errors to improve code quality."
-
-    return insights
-
-# Run the application with uvicorn app:app --reload
+# Endpoint for error severity prediction
+@app.post("/predict/error_severity/")
+def predict_error_severity(data: InputData):
+    input_df = preprocess_data(data)
+    severity_cluster = severity_model.predict(input_df[['errorSummary_bySeverity_error', 'errorSummary_bySeverity_warning', 'errorSummary_bySeverity_info']])[0]
+    return {
+        "error_severity_cluster": "Low" if severity_cluster == 0 else "Medium" if severity_cluster == 1 else "High",
+        "error_severity_insights": "High-severity errors detected. Prioritize fixes." if severity_cluster == 2 else "Error severity is under control."
+    }
