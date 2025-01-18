@@ -10,9 +10,9 @@ def generate_synthetic_data(num_records, num_users=3):
 
     # Define clusters for productivity patterns
     clusters = {
-        "High Productivity": {"focus_score_mean": 80, "typing_rhythm_mean": 80, "idle_time_mean": 300},
-        "Moderate Productivity": {"focus_score_mean": 60, "typing_rhythm_mean": 60, "idle_time_mean": 600},
-        "Low Productivity": {"focus_score_mean": 40, "typing_rhythm_mean": 40, "idle_time_mean": 900}
+        "High Productivity": {"focus_score_mean": 80, "typing_rhythm_mean": 80, "idle_time_mean": 30},
+        "Moderate Productivity": {"focus_score_mean": 60, "typing_rhythm_mean": 60, "idle_time_mean": 60},
+        "Low Productivity": {"focus_score_mean": 40, "typing_rhythm_mean": 40, "idle_time_mean": 90}
     }
 
     for i in range(num_records):
@@ -26,22 +26,24 @@ def generate_synthetic_data(num_records, num_users=3):
 
         # Randomly assign a productivity cluster
         cluster = random.choice(list(clusters.keys()))
-        focus_score = round(np.random.normal(loc=clusters[cluster]["focus_score_mean"], scale=10), 1)
+        focus_score = round(np.random.normal(loc=clusters[cluster]["focus_score_mean"], scale=3), 1)  # Reduced noise
         focus_score = max(0, min(100, focus_score))  # Ensure focus score is within 0-100
 
         # Simulate typing rhythm correlated with focus score
-        typing_rhythm = int(np.random.normal(loc=clusters[cluster]["typing_rhythm_mean"], scale=10))
+        typing_rhythm = int(np.random.normal(loc=clusters[cluster]["typing_rhythm_mean"], scale=3))  # Reduced noise
         typing_rhythm = max(0, min(100, typing_rhythm))  # Ensure typing rhythm is within 0-100
 
-        # Simulate idle time based on cluster
-        idle_time = round(np.random.normal(loc=clusters[cluster]["idle_time_mean"], scale=100), 3)
+        # Simulate idle time based on cluster (in minutes)
+        idle_time = round(np.random.normal(loc=clusters[cluster]["idle_time_mean"], scale=5), 2)  # Reduced noise
         idle_time = max(0, idle_time)  # Ensure idle time is non-negative
 
-        # Simulate session duration (longer sessions for high productivity)
-        session_duration = round(np.random.normal(loc=30 + 20 * (focus_score / 100), scale=10), 6)
+        # Simulate session duration (in minutes, correlated with focus score)
+        # Realistic range: 10 to 180 minutes (1.5 hours to 3 hours)
+        session_duration = round(np.random.normal(loc=30 + 20 * (focus_score / 100), scale=10), 2)
+        session_duration = max(10, min(180, session_duration))  # Ensure session duration is within 10-180 minutes
 
-        # Simulate active file duration (correlated with focus score)
-        active_file_duration = round(np.random.normal(loc=1200 * (focus_score / 100), scale=200), 3)
+        # Simulate active file duration (same as session duration)
+        active_file_duration = session_duration
 
         # Simulate tab metrics with variability
         tab_metrics = {
@@ -87,7 +89,7 @@ def generate_synthetic_data(num_records, num_users=3):
 
         # Simulate achievements with variability (more likely for high focus score and low idle time)
         achievements = []
-        if focus_score > 70 and idle_time < 500:  # High focus and low idle time
+        if focus_score > 70 and idle_time < 30:  # High focus and low idle time
             achievement_types = ["CLEAN_CODE_CHAMPION", "DEBUGGING_MASTER", "PRODUCTIVITY_GURU"]
             achievements.append({
                 "type": random.choice(achievement_types),
@@ -116,7 +118,7 @@ def generate_synthetic_data(num_records, num_users=3):
             "currentStreak": random.randint(0, 5),
             "longestStreak": random.randint(1, 10),
             "sessionDuration": session_duration,
-            "activeFileDuration": active_file_duration,
+            "activeFileDuration": active_file_duration,  # Same as session duration
             "idleTime": idle_time,
             "typingRhythm": typing_rhythm,
             "tabMetrics": tab_metrics,
