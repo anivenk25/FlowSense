@@ -1,6 +1,7 @@
 const express = require("express");
 const mongoose = require("mongoose");
 const FlowMetrics = require("./models/FlowMetrics"); // Path to your Mongoose model
+const CodeAnalysis = require("./models/CodeAnalysis");
 
 const app = express();
 app.use(express.json());
@@ -21,6 +22,38 @@ app.post("/api/save-session", async (req, res) => {
   } catch (err) {
     console.error("Error saving session data:", err);
     res.status(500).json({ message: "Failed to save session data", error: err.message });
+  }
+});
+
+// In your Express route handler
+app.post('/api/analysis', async (req, res) => {
+  console.log('Received request body:', req.body);
+  
+  try {
+    const codeAnalysis = new CodeAnalysis(req.body);
+    
+    // Detailed validation
+    const validationError = codeAnalysis.validateSync();
+    if (validationError) {
+      console.log('Validation error details:', validationError.errors);
+      return res.status(400).json({
+        error: 'Validation failed',
+        details: Object.keys(validationError.errors).map(key => ({
+          field: key,
+          message: validationError.errors[key].message
+        }))
+      });
+    }
+    
+    const savedAnalysis = await codeAnalysis.save();
+    res.json(savedAnalysis);
+  } catch (error) {
+    console.error('Server error:', error);
+    res.status(500).json({
+      error: 'Server error',
+      message: error.message,
+      details: error.errors || {}
+    });
   }
 });
 

@@ -1,6 +1,51 @@
 const vscode = require("vscode");
 
+async function analyzeCodeFromEditor() {
+  console.log("Analyzing code...");
+  const { GeminiAnalyzer } = require("./geminiAnalyzer");
 
+  const apiKey = "AIzaSyCjtabTcyu6JSm6ZeiTd_XAH1pG4XbHLgI"; // It's better to store this securely
+  const geminiAnalyzer = new GeminiAnalyzer(apiKey);
+
+  try {
+    // Get the active text editor
+    const editor = vscode.window.activeTextEditor;
+
+    if (!editor) {
+      vscode.window.showErrorMessage("No active editor found");
+      return null; // Return null if no editor is found
+    }
+
+    // Extract the code from the editor
+    const code = editor.document.getText();
+
+    // Get the language of the current file
+    const language = editor.document.languageId;
+
+    // Log the code and language (for debugging purposes)
+    console.log("Code:", code);
+    console.log("Language:", language);
+
+    // Analyze the code using GeminiAnalyzer
+    const analysisResults = await geminiAnalyzer.analyzeCode(code, language);
+
+    // Display results in the VSCode output window or UI
+    console.log("Analysis Results:", analysisResults);
+
+    // Show results in VSCode's output or as a message
+    vscode.window.showInformationMessage(
+      "Code analysis completed! Check the console for details."
+    );
+
+    return analysisResults; // Return the analysis results
+  } catch (error) {
+    console.error("Error analyzing code:", error);
+    vscode.window.showErrorMessage(
+      "Failed to analyze code. Check the console for errors."
+    );
+    return null; // Return null in case of an error
+  }
+}
 
 class FlowStateWebview {
   constructor(context) {
@@ -49,24 +94,29 @@ class FlowStateWebview {
     }, 1000);
 
     this.panel.webview.onDidReceiveMessage(
-      async (message) => {  // Make the callback async
+      async (message) => {
+        // Make the callback async
         switch (message.command) {
           case "reset":
             try {
               // Save session data to the database
               await flowTracker.saveSessionToDatabase(flowTracker);
-    
+
               // Reset the metrics
               flowTracker.reset();
-    
+
               // Update the content
               this.updateContent(flowTracker);
-    
+
               // Show confirmation message
-              vscode.window.showInformationMessage("Flow metrics have been reset");
+              vscode.window.showInformationMessage(
+                "Flow metrics have been reset"
+              );
             } catch (error) {
               console.error("Error resetting flow metrics:", error);
-              vscode.window.showErrorMessage("An error occurred while resetting flow metrics.");
+              vscode.window.showErrorMessage(
+                "An error occurred while resetting flow metrics."
+              );
             }
             break;
         }
@@ -74,7 +124,6 @@ class FlowStateWebview {
       undefined,
       this.context.subscriptions
     );
-    
   }
 
   updateContent(flowTracker) {
@@ -101,10 +150,8 @@ class FlowStateWebview {
     }
   }
 
-
   getWebviewContent(metrics) {
     const errorSummary = metrics.getErrorSummary();
-    console.log("Error Summary:", errorSummary);
 
     return `<!DOCTYPE html>
         <html lang="en">
@@ -632,20 +679,17 @@ class FlowStateTracker {
       sequential: 0,
       lastTabs: [],
     };
-
-
   }
 
   async saveSessionToDatabase(flowTracker) {
-
     const metrics = flowTracker.getMetrics();
     const errorSummary = flowTracker.getErrorSummary();
-  
+
     console.log("Session data to be saved:", metrics);
-  
+
     const sessionData = {
       timestamp: new Date(),
-      userId: this.userId || '123',
+      userId: this.userId || "123",
       focusScore: metrics.focusScore || 0,
       currentStreak: metrics.currentStreak || 0,
       longestStreak: metrics.longestStreak || 0,
@@ -658,53 +702,51 @@ class FlowStateTracker {
         rapid: metrics.tabMetrics?.rapid || 0,
         patterns: {
           backAndForth: metrics.tabMetrics?.patterns?.backAndForth || 0,
-          sequential: metrics.tabMetrics?.patterns?.sequential || 0
-        }
+          sequential: metrics.tabMetrics?.patterns?.sequential || 0,
+        },
       },
       copyPasteMetrics: {
         total: metrics.copyPasteMetrics?.total || 0,
         copy: metrics.copyPasteMetrics?.copy || 0,
         cut: metrics.copyPasteMetrics?.cut || 0,
-        paste: metrics.copyPasteMetrics?.paste || 0
+        paste: metrics.copyPasteMetrics?.paste || 0,
       },
       errorMetrics: {
         syntaxErrors: metrics.syntaxErrors || 0,
         warningCount: metrics.warningCount || 0,
-        problemCount: metrics.problemCount || 0
+        problemCount: metrics.problemCount || 0,
       },
       codeMetrics: {
         linesAdded: metrics.linesAdded || 0,
         linesDeleted: metrics.linesDeleted || 0,
         fileEdits: metrics.fileEdits || 0,
         codeComplexity: metrics.codeComplexity || 0,
-        testCoverage: metrics.testCoverage || 0
+        testCoverage: metrics.testCoverage || 0,
       },
       productivityStatus: metrics.productivityStatus || "Unknown",
-      achievements: metrics.achievements || [], 
-      errorSummary: errorSummary || {}  
+      achievements: metrics.achievements || [],
+      errorSummary: errorSummary || {},
     };
-  
+
     try {
       const response = await fetch("http://localhost:5000/api/save-session", {
         method: "POST",
         headers: {
-          "Content-Type": "application/json"
+          "Content-Type": "application/json",
         },
-        body: JSON.stringify(sessionData)
+        body: JSON.stringify(sessionData),
       });
-  
+
       if (!response.ok) {
         throw new Error(`Failed to save session data: ${response.statusText}`);
       }
-  
+
       const result = await response.json();
       console.log("Session data saved successfully:", result);
     } catch (err) {
       console.error("Error saving session data:", err);
     }
   }
-  
-  
 
   trackTabSwitch(fromTab, toTab) {
     const now = new Date();
@@ -1079,9 +1121,6 @@ class FlowStateTracker {
     if (this.focusScore >= low) return "Focused 🎯";
     return "Getting Started 🌱";
   }
-
-
-  
 }
 
 function activate(context) {
@@ -1092,42 +1131,51 @@ function activate(context) {
 
   // Add copy/paste tracking
   context.subscriptions.push(
-    vscode.commands.registerTextEditorCommand('editor.action.clipboardCopyAction', async (textEditor) => {
+    vscode.commands.registerTextEditorCommand(
+      "editor.action.clipboardCopyAction",
+      async (textEditor) => {
         const selection = textEditor.selection;
         if (!selection.isEmpty) {
-            const text = textEditor.document.getText(selection);
-            await vscode.env.clipboard.writeText(text);
-            flowTracker.trackCopyPaste('copy');
-            webview.updateContent(flowTracker);
+          const text = textEditor.document.getText(selection);
+          await vscode.env.clipboard.writeText(text);
+          flowTracker.trackCopyPaste("copy");
+          webview.updateContent(flowTracker);
         }
-    })
-);
+      }
+    )
+  );
 
-context.subscriptions.push(
-    vscode.commands.registerTextEditorCommand('editor.action.clipboardCutAction', async (textEditor) => {
+  context.subscriptions.push(
+    vscode.commands.registerTextEditorCommand(
+      "editor.action.clipboardCutAction",
+      async (textEditor) => {
         const selection = textEditor.selection;
         if (!selection.isEmpty) {
-            const text = textEditor.document.getText(selection);
-            await vscode.env.clipboard.writeText(text);
-            await textEditor.edit(editBuilder => {
-                editBuilder.delete(selection);
-            });
-            flowTracker.trackCopyPaste('cut');
-            webview.updateContent(flowTracker);
+          const text = textEditor.document.getText(selection);
+          await vscode.env.clipboard.writeText(text);
+          await textEditor.edit((editBuilder) => {
+            editBuilder.delete(selection);
+          });
+          flowTracker.trackCopyPaste("cut");
+          webview.updateContent(flowTracker);
         }
-    })
-);
+      }
+    )
+  );
 
-context.subscriptions.push(
-    vscode.commands.registerTextEditorCommand('editor.action.clipboardPasteAction', async (textEditor) => {
+  context.subscriptions.push(
+    vscode.commands.registerTextEditorCommand(
+      "editor.action.clipboardPasteAction",
+      async (textEditor) => {
         const text = await vscode.env.clipboard.readText();
-        await textEditor.edit(editBuilder => {
-            editBuilder.replace(textEditor.selection, text);
+        await textEditor.edit((editBuilder) => {
+          editBuilder.replace(textEditor.selection, text);
         });
-        flowTracker.trackCopyPaste('paste');
+        flowTracker.trackCopyPaste("paste");
         webview.updateContent(flowTracker);
-    })
-);
+      }
+    )
+  );
 
   // Add tab switch tracking
   context.subscriptions.push(
@@ -1198,8 +1246,7 @@ context.subscriptions.push(
 
   let resetMetricsDisposable = vscode.commands.registerCommand(
     "extension.resetFlowMetrics",
-   async () => {
-
+    async () => {
       flowTracker.reset();
       webview.updateContent(flowTracker);
       vscode.window.showInformationMessage("Flow metrics have been reset");
@@ -1247,6 +1294,75 @@ context.subscriptions.push(
       });
 
       webview.updateContent(flowTracker);
+    })
+  );
+
+  context.subscriptions.push(
+    vscode.workspace.onDidSaveTextDocument(async (document) => {
+      // Await the result of the analyzeCodeFromEditor function
+      const analysis = await analyzeCodeFromEditor();
+
+      // If no analysis result is returned (in case of error or no editor), exit early
+      if (!analysis) {
+        console.error("No analysis result found!");
+        return;
+      }
+
+
+      const payload = {
+        userId: "12345",
+        language: document.languageId,
+        problem: {
+          type: analysis.problem.type,
+          domain: analysis.problem.domain,
+          functionality: analysis.problem.functionality,
+          complexity: analysis.problem.complexity,
+        },
+        complexity: {
+          time: analysis.complexity.time,
+          space: analysis.complexity.space,
+        },
+        quality: {
+          readability: analysis.quality.readability,
+          maintainability: analysis.quality.maintainability,
+          modularity: analysis.quality.modularity,
+          documentation: analysis.quality.documentation,
+          errorHandling: analysis.quality.errorHandling,
+          duplication: analysis.quality.duplication || 0,
+        },
+      };
+
+
+      try {
+        const response = await fetch("http://localhost:5000/api/analysis", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify(payload),
+        });
+
+
+        const responseText = await response.text();
+
+        // Parse the response only if it's JSON
+        if (response.ok) {
+          try {
+            const responseData = JSON.parse(responseText);
+            console.log("Code analysis saved successfully:", responseData);
+          } catch (e) {
+            console.error("Error parsing response:", e);
+          }
+        } else {
+          console.error(
+            "Failed to save code analysis:",
+            response.statusText,
+            responseText
+          );
+        }
+      } catch (error) {
+        console.error("Network or other error:", error);
+      }
     })
   );
 }
