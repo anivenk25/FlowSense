@@ -12,8 +12,8 @@ async function createTeam() {
     return false;
   }
 
-  const user = extensionContext.globalState.get('userToken');
-      
+  const user = extensionContext.globalState.get("userToken");
+
   // Extract just the user ID from the user object
   const creatorId = user?.id || user?._id;
 
@@ -39,7 +39,9 @@ async function createTeam() {
     }
 
     const data = await response.json();
-    vscode.window.showInformationMessage(`Team "${teamName}" created successfully!`);
+    vscode.window.showInformationMessage(
+      `Team "${teamName}" created successfully!`
+    );
     return true;
   } catch (error) {
     console.error("Error creating team:", error);
@@ -70,8 +72,8 @@ async function addTeamMember() {
     return false;
   }
 
-  const user = extensionContext.globalState.get('userToken');
-      
+  const user = extensionContext.globalState.get("userToken");
+
   // Extract just the user ID from the user object
   const userId = user?.id || user?._id;
 
@@ -97,11 +99,15 @@ async function addTeamMember() {
     }
 
     const data = await response.json();
-    vscode.window.showInformationMessage(`User "${username}" added to team "${teamName}"!`);
+    vscode.window.showInformationMessage(
+      `User "${username}" added to team "${teamName}"!`
+    );
     return true;
   } catch (error) {
     console.error("Error adding member to team:", error);
-    vscode.window.showErrorMessage("Failed to add member to team. Please try again.");
+    vscode.window.showErrorMessage(
+      "Failed to add member to team. Please try again."
+    );
     return false;
   }
 }
@@ -128,8 +134,8 @@ async function removeTeamMember() {
     return false;
   }
 
-  const user = extensionContext.globalState.get('userToken');
-      
+  const user = extensionContext.globalState.get("userToken");
+
   // Extract just the user ID from the user object
   const userId = user?.id || user?._id;
 
@@ -137,7 +143,7 @@ async function removeTeamMember() {
     console.error("No user ID found!");
     return;
   }
-  
+
   try {
     const response = await fetch("http://localhost:5000/api/teams/remove", {
       method: "POST",
@@ -149,17 +155,22 @@ async function removeTeamMember() {
 
     if (!response.ok) {
       const errorData = await response.json();
-      const errorMessage = errorData.message || "Failed to remove member from team.";
+      const errorMessage =
+        errorData.message || "Failed to remove member from team.";
       vscode.window.showErrorMessage(errorMessage);
       return false;
     }
 
     const data = await response.json();
-    vscode.window.showInformationMessage(`User "${username}" removed from team "${teamName}"!`);
+    vscode.window.showInformationMessage(
+      `User "${username}" removed from team "${teamName}"!`
+    );
     return true;
   } catch (error) {
     console.error("Error removing member from team:", error);
-    vscode.window.showErrorMessage("Failed to remove member from team. Please try again.");
+    vscode.window.showErrorMessage(
+      "Failed to remove member from team. Please try again."
+    );
     return false;
   }
 }
@@ -167,7 +178,7 @@ async function removeTeamMember() {
 // Function to fetch team details
 async function fetchTeamDetails() {
   // Get the user object from globalState
-  const user = extensionContext.globalState.get('userToken');
+  const user = extensionContext.globalState.get("userToken");
 
   // Extract just the user ID from the user object
   const userId = user?.id || user?._id;
@@ -179,12 +190,17 @@ async function fetchTeamDetails() {
 
   try {
     // Append userId as a query parameter
-    const response = await fetch(`http://localhost:5000/api/user-teams?userId=${encodeURIComponent(userId)}`, {
-      method: "GET",
-      headers: {
-        "Content-Type": "application/json",
-      },
-    });
+    const response = await fetch(
+      `http://localhost:5000/api/user-teams?userId=${encodeURIComponent(
+        userId
+      )}`,
+      {
+        method: "GET",
+        headers: {
+          "Content-Type": "application/json",
+        },
+      }
+    );
 
     if (!response.ok) {
       const errorData = await response.json();
@@ -197,7 +213,9 @@ async function fetchTeamDetails() {
     const teams = data.teams;
 
     if (teams.length === 0) {
-      vscode.window.showInformationMessage("You are not a member of any teams.");
+      vscode.window.showInformationMessage(
+        "You are not a member of any teams."
+      );
       return false;
     }
 
@@ -223,9 +241,6 @@ async function fetchTeamDetails() {
     return null;
   }
 }
-
-
-
 
 async function registerUser() {
   const username = await vscode.window.showInputBox({
@@ -276,13 +291,15 @@ async function registerUser() {
     }
 
     const data = await response.json();
-    const { token,user } = data;
+    const { token, user } = data;
 
     // Store the token
-    await extensionContext.globalState.update('authToken', token);
-    await extensionContext.globalState.update('userToken', user);
+    await extensionContext.globalState.update("authToken", token);
+    await extensionContext.globalState.update("userToken", user);
 
-    vscode.window.showInformationMessage(`Welcome, ${username}! Registration successful.`);
+    vscode.window.showInformationMessage(
+      `Welcome, ${username}! Registration successful.`
+    );
     return true;
   } catch (error) {
     console.error("Error registering user:", error);
@@ -294,16 +311,16 @@ async function registerUser() {
 // Modify authenticateUser to first check if user wants to register
 async function authenticateUser() {
   // First check if already authenticated
-  const authToken = extensionContext.globalState.get('authToken');
+  const authToken = extensionContext.globalState.get("authToken");
   if (authToken) {
     try {
       // Verify the stored token
       const response = await fetch("http://localhost:5000/api/verify", {
         method: "POST",
         headers: {
-          "Authorization": `Bearer ${authToken}`,
+          Authorization: `Bearer ${authToken}`,
           "Content-Type": "application/json",
-        }
+        },
       });
 
       if (response.ok) {
@@ -312,26 +329,23 @@ async function authenticateUser() {
         return true;
       }
       // If verification fails, clear stored token
-      await extensionContext.globalState.update('authToken', undefined);
+      await extensionContext.globalState.update("authToken", undefined);
     } catch (error) {
       console.error("Error verifying token:", error);
     }
   }
 
   // Ask if user wants to register or login
-  const choice = await vscode.window.showQuickPick(
-    ['Login', 'Register'],
-    {
-      placeHolder: 'Would you like to login or register?',
-      ignoreFocusOut: true,
-    }
-  );
+  const choice = await vscode.window.showQuickPick(["Login", "Register"], {
+    placeHolder: "Would you like to login or register?",
+    ignoreFocusOut: true,
+  });
 
   if (!choice) {
     return false;
   }
 
-  if (choice === 'Register') {
+  if (choice === "Register") {
     return await registerUser();
   }
 
@@ -376,8 +390,8 @@ async function authenticateUser() {
     const { token, user } = data;
 
     // Store the token
-    await extensionContext.globalState.update('authToken', token);
-    await extensionContext.globalState.update('userToken', user);
+    await extensionContext.globalState.update("authToken", token);
+    await extensionContext.globalState.update("userToken", user);
 
     vscode.window.showInformationMessage(`Welcome back, ${user.username}!`);
     return true;
@@ -390,16 +404,16 @@ async function authenticateUser() {
 
 // Add a logout function to clear stored token
 async function logout() {
-  await extensionContext.globalState.update('authToken', undefined);
-  vscode.window.showInformationMessage('Logged out successfully');
-  
+  await extensionContext.globalState.update("authToken", undefined);
+  vscode.window.showInformationMessage("Logged out successfully");
+
   // Close all webview panels
   if (vscode.window.activeTextEditor) {
-    await vscode.commands.executeCommand('workbench.action.closeAllEditors');
+    await vscode.commands.executeCommand("workbench.action.closeAllEditors");
   }
-  
+
   // Deactivate the extension
-  vscode.commands.executeCommand('workbench.action.reloadWindow');
+  vscode.commands.executeCommand("workbench.action.reloadWindow");
 }
 
 async function analyzeCodeFromEditor() {
@@ -458,19 +472,24 @@ class FlowStateWebview {
 
   async fetchTeamDetails() {
     try {
-      const user = this.context.globalState.get('userToken');
+      const user = this.context.globalState.get("userToken");
       const userId = user?.id || user?._id;
 
       if (!userId) {
         return null;
       }
 
-      const response = await fetch(`http://localhost:5000/api/user-teams?userId=${encodeURIComponent(userId)}`, {
-        method: "GET",
-        headers: {
-          "Content-Type": "application/json",
-        },
-      });
+      const response = await fetch(
+        `http://localhost:5000/api/user-teams?userId=${encodeURIComponent(
+          userId
+        )}`,
+        {
+          method: "GET",
+          headers: {
+            "Content-Type": "application/json",
+          },
+        }
+      );
 
       if (!response.ok) {
         return null;
@@ -531,10 +550,14 @@ class FlowStateWebview {
               await flowTracker.saveSessionToDatabase(flowTracker);
               flowTracker.reset();
               this.updateContent(flowTracker);
-              vscode.window.showInformationMessage("Flow metrics have been reset");
+              vscode.window.showInformationMessage(
+                "Flow metrics have been reset"
+              );
             } catch (error) {
               console.error("Error resetting flow metrics:", error);
-              vscode.window.showErrorMessage("An error occurred while resetting flow metrics.");
+              vscode.window.showErrorMessage(
+                "An error occurred while resetting flow metrics."
+              );
             }
             break;
           case "logout":
@@ -543,7 +566,9 @@ class FlowStateWebview {
               vscode.window.showInformationMessage("Logged out successfully");
             } catch (error) {
               console.error("Error logging out:", error);
-              vscode.window.showErrorMessage("An error occurred while logging out.");
+              vscode.window.showErrorMessage(
+                "An error occurred while logging out."
+              );
             }
             break;
           case "createTeam":
@@ -554,7 +579,9 @@ class FlowStateWebview {
               }
             } catch (error) {
               console.error("Error creating team:", error);
-              vscode.window.showErrorMessage("An error occurred while creating the team.");
+              vscode.window.showErrorMessage(
+                "An error occurred while creating the team."
+              );
             }
             break;
           case "addTeamMember":
@@ -565,7 +592,9 @@ class FlowStateWebview {
               }
             } catch (error) {
               console.error("Error adding team member:", error);
-              vscode.window.showErrorMessage("An error occurred while adding the team member.");
+              vscode.window.showErrorMessage(
+                "An error occurred while adding the team member."
+              );
             }
             break;
           case "removeTeamMember":
@@ -576,7 +605,9 @@ class FlowStateWebview {
               }
             } catch (error) {
               console.error("Error removing team member:", error);
-              vscode.window.showErrorMessage("An error occurred while removing the team member.");
+              vscode.window.showErrorMessage(
+                "An error occurred while removing the team member."
+              );
             }
             break;
           case "viewTeam":
@@ -584,7 +615,9 @@ class FlowStateWebview {
               await fetchTeamDetails();
             } catch (error) {
               console.error("Error viewing team details:", error);
-              vscode.window.showErrorMessage("An error occurred while fetching team details.");
+              vscode.window.showErrorMessage(
+                "An error occurred while fetching team details."
+              );
             }
             break;
         }
@@ -619,37 +652,50 @@ class FlowStateWebview {
     }
   }
 
-  getWebviewContent(metrics,teams) {
+  getWebviewContent(metrics, teams) {
     const errorSummary = metrics.getErrorSummary();
 
-    const teamsSection = teams ? `
+    const teamsSection = teams
+      ? `
       <div class="teams-section">
-        ${teams.map(team => `
+        ${teams
+          .map(
+            (team) => `
           <div class="team-card">
             <div class="team-header">
               <h3>${team.name}</h3>
               <span class="team-creator">Created by: ${
-                team.members.find(m => m._id === team.creator)?.username || 'Unknown'
+                team.members.find((m) => m._id === team.creator)?.username ||
+                "Unknown"
               }</span>
             </div>
             <div class="team-members">
               <h4>Members:</h4>
               <ul>
-                ${team.members.map(member => `
+                ${team.members
+                  .map(
+                    (member) => `
                   <li>
                     <span class="member-name">${member.username}</span>
                     <span class="member-email">${member.email}</span>
                   </li>
-                `).join('')}
+                `
+                  )
+                  .join("")}
               </ul>
             </div>
             <div class="team-meta">
-              <span class="team-date">Created: ${new Date(team.createdAt).toLocaleDateString()}</span>
+              <span class="team-date">Created: ${new Date(
+                team.createdAt
+              ).toLocaleDateString()}</span>
             </div>
           </div>
-        `).join('')}
+        `
+          )
+          .join("")}
       </div>
-    ` : '<p>No teams available</p>';
+    `
+      : "<p>No teams available</p>";
 
     return `<!DOCTYPE html>
         <html lang="en">
@@ -658,273 +704,405 @@ class FlowStateWebview {
             <meta name="viewport" content="width=device-width, initial-scale=1.0">
             <title>Flow State Analytics</title>
             <style>
-                body {
-                    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
-                    padding: 20px;
-                    color: var(--vscode-foreground);
-                    background-color: var(--vscode-editor-background);
-                    line-height: 1.5;
-                }
-                .container {
-                    max-width: 1200px;
-                    margin: 0 auto;
-                }
-                .dashboard {
-                    display: grid;
-                    grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
-                    gap: 20px;
-                    margin-top: 20px;
-                }
-                .header {
-                    display: flex;
-                    justify-content: space-between;
-                    align-items: center;
-                    margin-bottom: 30px;
-                    padding-bottom: 20px;
-                    border-bottom: 1px solid var(--vscode-panel-border);
-                }
-                .title-section {
-                    display: flex;
-                    align-items: center;
-                    gap: 15px;
-                }
-                .title-section h1 {
-                    margin: 0;
-                    font-size: 24px;
-                }
-                .status-badge {
-                    padding: 8px 16px;
-                    border-radius: 20px;
-                    font-size: 14px;
-                    font-weight: 500;
-                    background-color: var(--vscode-button-background);
-                    color: var(--vscode-button-foreground);
-                }
-                .metric-card {
-                    background-color: var(--vscode-editor-background);
-                    border: 1px solid var(--vscode-panel-border);
-                    border-radius: 10px;
-                    padding: 20px;
-                    transition: transform 0.2s, box-shadow 0.2s;
-                }
-                .metric-card:hover {
-                    transform: translateY(-2px);
-                    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
-                }
-                .metric-header {
-                    display: flex;
-                    justify-content: space-between;
-                    align-items: center;
-                    margin-bottom: 15px;
-                }
-                .metric-title {
-                    font-size: 14px;
-                    color: var(--vscode-foreground);
-                    opacity: 0.8;
-                }
-                .metric-icon {
-                    font-size: 20px;
-                }
-                .metric-value {
-                    font-size: 28px;
-                    font-weight: bold;
-                    color: var(--vscode-textLink-foreground);
-                    margin: 10px 0;
-                }
-                .metric-subtitle {
-                    font-size: 12px;
-                    color: var(--vscode-foreground);
-                    opacity: 0.6;
-                }
-                .progress-bar {
-                    width: 100%;
-                    height: 6px;
-                    background-color: var(--vscode-progressBar-background);
-                    border-radius: 3px;
-                    margin-top: 15px;
-                    overflow: hidden;
-                }
-                .progress-value {
-                    height: 100%;
-                    background-color: var(--vscode-textLink-foreground);
-                    transition: width 0.3s ease;
-                    border-radius: 3px;
-                }
-                .focus-score {
-                    font-size: 48px;
-                    font-weight: bold;
-                    text-align: center;
-                    margin: 20px 0;
-                    color: var(--vscode-textLink-foreground);
-                }
-                .streak-badge {
-                    display: inline-flex;
-                    align-items: center;
-                    gap: 5px;
-                    padding: 4px 8px;
-                    border-radius: 12px;
-                    font-size: 12px;
-                    background-color: var(--vscode-textLink-foreground);
-                    color: var(--vscode-button-foreground);
-                }
-                .actions {
-                    display: flex;
-                    gap: 10px;
-                }
-                .button {
-                    padding: 8px 16px;
-                    border: none;
-                    border-radius: 6px;
-                    font-size: 14px;
-                    cursor: pointer;
-                    transition: background-color 0.2s;
-                }
-                .primary-button {
-                    background-color: var(--vscode-button-background);
-                    color: var(--vscode-button-foreground);
-                }
-                .primary-button:hover {
-                    background-color: var(--vscode-button-hoverBackground);
-                }
-                .secondary-button {
-                    background-color: transparent;
-                    border: 1px solid var(--vscode-button-background);
-                    color: var(--vscode-button-background);
-                }
-                .secondary-button:hover {
-                    background-color: var(--vscode-button-background);
-                    color: var(--vscode-button-foreground);
-                }
-                .highlight {
-                    color: var(--vscode-textLink-foreground);
-                }
-                .error-list {
-                    margin-top: 10px;
-                    max-height: 200px;
-                    overflow-y: auto;
-                    font-size: 12px;
-                }
-                .error-item {
-                    padding: 8px;
-                    border-left: 3px solid;
-                    margin-bottom: 4px;
-                    background-color: var(--vscode-editor-background);
-                }
-                .error-item.error { border-color: #ff5555; }
-                .error-item.warning { border-color: #f1fa8c; }
-                .error-item.info { border-color: #8be9fd; }
-                .error-location {
-                    font-family: monospace;
-                    color: var(--vscode-textPreformat-foreground);
-                }
-                .language-errors {
-                    display: flex;
-                    flex-wrap: wrap;
-                    gap: 10px;
-                    margin-top: 10px;
-                }
-                .language-badge {
-                    padding: 4px 8px;
-                    border-radius: 12px;
-                    font-size: 11px;
-                    background-color: var(--vscode-badge-background);
-                    color: var(--vscode-badge-foreground);
-                }
-                     .team-actions {
-                    display: grid;
-                    grid-template-columns: repeat(2, 1fr);
-                    gap: 10px;
-                    margin-top: 20px;
-                }
-                .team-button {
-                    padding: 10px;
-                    border: 1px solid var(--vscode-button-background);
-                    border-radius: 6px;
-                    background-color: transparent;
-                    color: var(--vscode-button-background);
-                    cursor: pointer;
-                    transition: all 0.2s;
-                }
-                .team-button:hover {
-                    background-color: var(--vscode-button-background);
-                    color: var(--vscode-button-foreground);
-                }
-                       .teams-section {
-                    display: grid;
-                    grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
-                    gap: 20px;
-                    margin-top: 20px;
-                }
-                .team-card {
-                    background-color: var(--vscode-editor-background);
-                    border: 1px solid var(--vscode-panel-border);
-                    border-radius: 10px;
-                    padding: 20px;
-                    transition: transform 0.2s;
-                }
-                .team-card:hover {
-                    transform: translateY(-2px);
-                }
-                .team-header {
-                    display: flex;
-                    justify-content: space-between;
-                    align-items: center;
-                    margin-bottom: 15px;
-                    padding-bottom: 10px;
-                    border-bottom: 1px solid var(--vscode-panel-border);
-                }
-                .team-header h3 {
-                    margin: 0;
-                    color: var(--vscode-textLink-foreground);
-                }
-                .team-creator {
-                    font-size: 12px;
-                    opacity: 0.8;
-                }
-                .team-members {
-                    margin: 15px 0;
-                }
-                .team-members h4 {
-                    margin: 0 0 10px 0;
-                    font-size: 14px;
-                }
-                .team-members ul {
-                    list-style: none;
-                    padding: 0;
-                    margin: 0;
-                }
-                .team-members li {
-                    display: flex;
-                    justify-content: space-between;
-                    padding: 5px 0;
-                    font-size: 13px;
-                }
-                .member-email {
-                    opacity: 0.7;
-                    font-size: 12px;
-                }
-                .team-meta {
-                    margin-top: 15px;
-                    font-size: 12px;
-                    opacity: 0.7;
-                }
-                .teams-container {
-                    margin-top: 30px;
-                    padding: 20px;
-                    background-color: var(--vscode-editor-background);
-                    border-radius: 10px;
-                }
-                .teams-header {
-                    display: flex;
-                    justify-content: space-between;
-                    align-items: center;
-                    margin-bottom: 20px;
-                }
-                .teams-title {
-                    font-size: 20px;
-                    margin: 0;
-                }
-            </style>
+        :root {
+            /* Catppuccin Mocha Theme Colors */
+            --rosewater: #f5e0dc;
+            --flamingo: #f2cdcd;
+            --pink: #f5c2e7;
+            --mauve: #cba6f7;
+            --red: #f38ba8;
+            --maroon: #eba0ac;
+            --peach: #fab387;
+            --yellow: #f9e2af;
+            --green: #a6e3a1;
+            --teal: #94e2d5;
+            --sky: #89dceb;
+            --sapphire: #74c7ec;
+            --blue: #89b4fa;
+            --lavender: #b4befe;
+            --text: #cdd6f4;
+            --subtext1: #bac2de;
+            --subtext0: #a6adc8;
+            --overlay2: #9399b2;
+            --overlay1: #7f849c;
+            --overlay0: #6c7086;
+            --surface2: #585b70;
+            --surface1: #45475a;
+            --surface0: #313244;
+            --base: #1e1e2e;
+            --mantle: #181825;
+            --crust: #11111b;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            padding: 20px;
+            color: var(--text);
+            background-color: var(--base);
+            line-height: 1.5;
+        }
+            
+          ..metric-card {
+    @apply bg-[#313244] rounded-xl p-6;
+    @apply border-2 border-[#45475a];
+    @apply transition-all duration-300;
+    @apply hover:shadow-xl hover:shadow-[#181825]/20;
+}
+
+.metric-header {
+    @apply flex justify-between items-center mb-6;
+    @apply border-b border-[#45475a] pb-4;
+}
+
+.metric-title {
+    @apply text-[#cba6f7] text-lg font-semibold;
+}
+
+.metric-icon {
+    @apply text-2xl;
+}
+.team-actions {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 10px;
+    margin-top: 20px;
+}
+
+.team-button {
+    padding: 10px;
+    border: 1px solid var(--mauve);
+    border-radius: 6px;
+    background-color: var(--surface0);
+    color: var(--text);
+    cursor: pointer;
+    transition: all 0.2s;
+}
+.team-button:hover {
+    background-color: var(--mauve);
+    color: var(--base);
+}
+
+
+/* Rest of the existing styles remain unchanged */
+.team-card {
+    @apply bg-[#313244] rounded-xl p-6;
+    @apply border-2 border-[#45475a];
+    @apply transition-all duration-300;
+    @apply hover:shadow-xl hover:shadow-[#181825]/20;
+    @apply hover:-translate-y-1;
+}
+
+.team-header {
+    @apply flex justify-between items-center;
+    @apply border-b border-[#45475a] pb-4 mb-4;
+}
+
+.team-header h3 {
+    @apply text-[#cba6f7] text-lg font-semibold;
+}
+
+.team-creator {
+    @apply text-[#a6adc8] text-sm;
+}
+
+.team-members h4 {
+    @apply text-[#89dceb] font-medium mb-3;
+}
+
+.team-members ul {
+    @apply space-y-2;
+}
+
+.team-members li {
+    @apply flex justify-between items-center;
+    @apply py-2 border-b border-[#45475a] last:border-0;
+}
+
+.member-name {
+    @apply text-[#cdd6f4] font-medium;
+}
+
+.member-email {
+    @apply text-[#a6adc8] text-sm;
+}
+
+.team-meta {
+    @apply mt-4 text-[#a6adc8] text-sm;
+}
+
+.team-date {
+    @apply flex items-center gap-2;
+}
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+        .dashboard {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 20px;
+            margin-top: 20px;
+        }
+        .header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 30px;
+            padding: 20px;
+            background-color: var(--surface0);
+            border-radius: 15px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.2);
+            border: 2px solid var(--surface1);
+            position: relative;
+        }
+        .header::before {
+            content: "";
+            position: absolute;
+            top: -15px;
+            left: 20px;
+            font-size: 24px;
+            animation: bounce 2s infinite;
+        }
+        @keyframes bounce {
+            0%, 100% { transform: translateY(0); }
+            50% { transform: translateY(-10px); }
+        }
+        .title-section {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+        }
+        .title-section h1 {
+            margin: 0;
+            font-size: 24px;
+            color: var(--mauve);
+        }
+        .status-badge {
+            padding: 8px 16px;
+            border-radius: 20px;
+            font-size: 14px;
+            font-weight: 500;
+            background-color: var(--sapphire);
+            color: var(--crust);
+        }
+        .metric-card {
+            background-color: var(--surface0);
+            border: 2px solid var(--surface1);
+            border-radius: 15px;
+            padding: 20px;
+            transition: all 0.3s ease;
+            position: relative;
+            overflow: hidden;
+        }
+        .metric-card::after {
+            content: "";
+            position: absolute;
+            bottom: -2px;
+            left: -2px;
+            right: -2px;
+            height: 4px;
+            background: linear-gradient(90deg, var(--mauve), var(--blue));
+            opacity: 0;
+            transition: opacity 0.3s ease;
+        }
+        .metric-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 8px 16px rgba(0, 0, 0, 0.2);
+        }
+        .metric-card:hover::after {
+            opacity: 1;
+        }
+        .metric-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 15px;
+        }
+        .metric-title {
+            font-size: 16px;
+            color: var(--lavender);
+            font-weight: 600;
+        }
+        .metric-icon {
+            font-size: 24px;
+            color: var(--sky);
+        }
+        .metric-value {
+            font-size: 32px;
+            font-weight: bold;
+            color: var(--text);
+            margin: 10px 0;
+        }
+        .metric-subtitle {
+            font-size: 14px;
+            color: var(--subtext0);
+        }
+        .progress-bar {
+            width: 100%;
+            height: 8px;
+            background-color: var(--surface1);
+            border-radius: 4px;
+            margin-top: 15px;
+            overflow: hidden;
+        }
+        .progress-value {
+            height: 100%;
+            background: linear-gradient(90deg, var(--mauve), var(--blue));
+            transition: width 0.3s ease;
+            border-radius: 4px;
+        }
+        .focus-score {
+            font-size: 48px;
+            font-weight: bold;
+            text-align: center;
+            margin: 20px 0;
+            color: var(--mauve);
+            text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.2);
+        }
+        .streak-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 5px;
+            padding: 6px 12px;
+            border-radius: 20px;
+            font-size: 14px;
+            background-color: var(--sapphire);
+            color: var(--crust);
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+        }
+        .button {
+            padding: 10px 20px;
+            border: none;
+            border-radius: 25px;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+        .primary-button {
+            background-color: var(--mauve);
+            color: var(--crust);
+        }
+        .primary-button:hover {
+            background-color: var(--pink);
+            transform: translateY(-2px);
+        }
+        .secondary-button {
+            background-color: var(--surface1);
+            color: var(--text);
+            border: 2px solid var(--mauve);
+        }
+        .secondary-button:hover {
+            background-color: var(--surface2);
+            transform: translateY(-2px);
+        }
+        .teams-container {
+            margin-top: 30px;
+            padding: 20px;
+            background-color: var(--surface0);
+            border-radius: 15px;
+            border: 2px solid var(--surface1);
+        }
+        .teams-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+            padding-bottom: 10px;
+            border-bottom: 2px solid var(--surface1);
+        }
+        .teams-title {
+            font-size: 24px;
+            color: var(--mauve);
+            margin: 0;
+        }
+        .team-card {
+            background-color: var(--surface0);
+            border: 2px solid var(--surface1);
+            border-radius: 15px;
+            padding: 20px;
+            margin-bottom: 20px;
+            transition: all 0.3s ease;
+        }
+        .team-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 8px 16px rgba(0, 0, 0, 0.2);
+        }
+        .team-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 15px;
+            padding-bottom: 10px;
+            border-bottom: 2px solid var(--surface1);
+        }
+        .team-header h3 {
+            margin: 0;
+            color: var(--mauve);
+        }
+        .team-members {
+            margin: 15px 0;
+        }
+        .team-members h4 {
+            color: var(--sky);
+            margin: 0 0 10px 0;
+        }
+        .team-members ul {
+            list-style: none;
+            padding: 0;
+            margin: 0;
+        }
+        .team-members li {
+            display: flex;
+            justify-content: space-between;
+            padding: 8px 0;
+            border-bottom: 1px solid var(--surface1);
+        }
+        .team-members li:last-child {
+            border-bottom: none;
+        }
+        .member-name {
+            color: var(--text);
+            font-weight: 500;
+        }
+        .member-email {
+            color: var(--subtext0);
+            font-size: 14px;
+        }
+        .error-list {
+            margin-top: 15px;
+            max-height: 200px;
+            overflow-y: auto;
+            border-radius: 10px;
+            border: 1px solid var(--surface1);
+        }
+        .error-item {
+            padding: 10px;
+            border-left: 4px solid;
+            margin-bottom: 5px;
+            background-color: var(--surface0);
+        }
+        .error-item.error { border-color: var(--red); }
+        .error-item.warning { border-color: var(--yellow); }
+        .error-item.info { border-color: var(--blue); }
+        .language-badge {
+            padding: 4px 12px;
+            border-radius: 15px;
+            font-size: 12px;
+            background-color: var(--surface1);
+            color: var(--text);
+            margin: 2px;
+        }
+        @media (max-width: 768px) {
+            .dashboard {
+                grid-template-columns: 1fr;
+            }
+            .header {
+                flex-direction: column;
+                gap: 15px;
+            }
+        }
+    </style>
         </head>
         <body>
             <div class="container">
@@ -1311,14 +1489,12 @@ class FlowStateTracker {
     };
   }
 
-  
-
   async saveSessionToDatabase(flowTracker) {
     const metrics = flowTracker.getMetrics();
     const errorSummary = flowTracker.getErrorSummary();
 
-    const user = extensionContext.globalState.get('userToken');
-      
+    const user = extensionContext.globalState.get("userToken");
+
     // Extract just the user ID from the user object
     const userId = user?.id || user?._id;
 
@@ -1326,7 +1502,6 @@ class FlowStateTracker {
       console.error("No user ID found!");
       return;
     }
-
 
     console.log("Session data to be saved:", metrics);
 
@@ -1768,12 +1943,9 @@ class FlowStateTracker {
 
 let extensionContext;
 
-
 async function activate(context) {
-
   extensionContext = context;
   console.log("Flow state detection extension is now active");
-
 
   const isAuthenticated = await authenticateUser();
 
@@ -1783,7 +1955,6 @@ async function activate(context) {
     );
     return; // Exit if authentication fails
   }
-
 
   const flowTracker = new FlowStateTracker();
   const webview = new FlowStateWebview(context);
@@ -1960,23 +2131,23 @@ async function activate(context) {
     vscode.workspace.onDidSaveTextDocument(async (document) => {
       // Await the result of the analyzeCodeFromEditor function
       const analysis = await analyzeCodeFromEditor();
-  
+
       // If no analysis result is returned (in case of error or no editor), exit early
       if (!analysis) {
         console.error("No analysis result found!");
         return;
       }
-  
-      const user = extensionContext.globalState.get('userToken');
-      
+
+      const user = extensionContext.globalState.get("userToken");
+
       // Extract just the user ID from the user object
       const userId = user?.id || user?._id;
-  
+
       if (!userId) {
         console.error("No user ID found!");
         return;
       }
-  
+
       const payload = {
         userId: userId, // Now sending just the ID string
         language: document.languageId,
@@ -1999,7 +2170,7 @@ async function activate(context) {
           duplication: analysis.quality.duplication || 0,
         },
       };
-  
+
       try {
         const response = await fetch("http://localhost:5000/api/analysis", {
           method: "POST",
@@ -2008,9 +2179,9 @@ async function activate(context) {
           },
           body: JSON.stringify(payload),
         });
-  
+
         const responseText = await response.text();
-  
+
         // Parse the response only if it's JSON
         if (response.ok) {
           try {
