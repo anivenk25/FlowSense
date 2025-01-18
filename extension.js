@@ -1,5 +1,180 @@
 const vscode = require("vscode");
 
+
+async function registerUser() {
+  const username = await vscode.window.showInputBox({
+    prompt: "Enter your username",
+    ignoreFocusOut: true,
+  });
+
+  if (!username) {
+    vscode.window.showErrorMessage("Username is required!");
+    return false;
+  }
+
+  const email = await vscode.window.showInputBox({
+    prompt: "Enter your email",
+    ignoreFocusOut: true,
+  });
+
+  if (!email) {
+    vscode.window.showErrorMessage("Email is required!");
+    return false;
+  }
+
+  const password = await vscode.window.showInputBox({
+    prompt: "Enter your password",
+    password: true,
+    ignoreFocusOut: true,
+  });
+
+  if (!password) {
+    vscode.window.showErrorMessage("Password is required!");
+    return false;
+  }
+
+  try {
+    const response = await fetch("http://localhost:5000/api/signup", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ username, email, password }),
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json();
+      const errorMessage = errorData.message || "Registration failed.";
+      vscode.window.showErrorMessage(errorMessage);
+      return false;
+    }
+
+    const data = await response.json();
+    const { token } = data;
+
+    // Store the token
+    await extensionContext.globalState.update('authToken', token);
+
+    vscode.window.showInformationMessage(`Welcome, ${username}! Registration successful.`);
+    return true;
+  } catch (error) {
+    console.error("Error registering user:", error);
+    vscode.window.showErrorMessage("Failed to register. Please try again.");
+    return false;
+  }
+}
+
+// Modify authenticateUser to first check if user wants to register
+async function authenticateUser() {
+  // First check if already authenticated
+  const authToken = extensionContext.globalState.get('authToken');
+  if (authToken) {
+    try {
+      // Verify the stored token
+      const response = await fetch("http://localhost:5000/api/verify", {
+        method: "POST",
+        headers: {
+          "Authorization": `Bearer ${authToken}`,
+          "Content-Type": "application/json",
+        }
+      });
+
+      if (response.ok) {
+        const { user } = await response.json();
+        vscode.window.showInformationMessage(`Welcome back, ${user.username}!`);
+        return true;
+      }
+      // If verification fails, clear stored token
+      await extensionContext.globalState.update('authToken', undefined);
+    } catch (error) {
+      console.error("Error verifying token:", error);
+    }
+  }
+
+  // Ask if user wants to register or login
+  const choice = await vscode.window.showQuickPick(
+    ['Login', 'Register'],
+    {
+      placeHolder: 'Would you like to login or register?',
+      ignoreFocusOut: true,
+    }
+  );
+
+  if (!choice) {
+    return false;
+  }
+
+  if (choice === 'Register') {
+    return await registerUser();
+  }
+
+  // Rest of the existing login logic...
+  const email = await vscode.window.showInputBox({
+    prompt: "Enter your email",
+    ignoreFocusOut: true,
+  });
+
+  if (!email) {
+    vscode.window.showErrorMessage("Email is required!");
+    return false;
+  }
+
+  const password = await vscode.window.showInputBox({
+    prompt: "Enter your password",
+    password: true,
+    ignoreFocusOut: true,
+  });
+
+  if (!password) {
+    vscode.window.showErrorMessage("Password is required!");
+    return false;
+  }
+
+  try {
+    const response = await fetch("http://localhost:5000/api/signin", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ email, password }),
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json();
+      const errorMessage = errorData.message || "Authentication failed.";
+      vscode.window.showErrorMessage(errorMessage);
+      return false;
+    }
+
+    const data = await response.json();
+    const { token, user } = data;
+
+    // Store the token
+    await extensionContext.globalState.update('authToken', token);
+
+    vscode.window.showInformationMessage(`Welcome back, ${user.username}!`);
+    return true;
+  } catch (error) {
+    console.error("Error authenticating user:", error);
+    vscode.window.showErrorMessage("Failed to authenticate. Please try again.");
+    return false;
+  }
+}
+
+// Add a logout function to clear stored token
+async function logout() {
+  await extensionContext.globalState.update('authToken', undefined);
+  vscode.window.showInformationMessage('Logged out successfully');
+  
+  // Close all webview panels
+  if (vscode.window.activeTextEditor) {
+    await vscode.commands.executeCommand('workbench.action.closeAllEditors');
+  }
+  
+  // Deactivate the extension
+  vscode.commands.executeCommand('workbench.action.reloadWindow');
+}
+
 async function analyzeCodeFromEditor() {
   console.log("Analyzing code...");
   const { GeminiAnalyzer } = require("./geminiAnalyzer");
@@ -95,28 +270,25 @@ class FlowStateWebview {
 
     this.panel.webview.onDidReceiveMessage(
       async (message) => {
-        // Make the callback async
         switch (message.command) {
           case "reset":
             try {
-              // Save session data to the database
               await flowTracker.saveSessionToDatabase(flowTracker);
-
-              // Reset the metrics
               flowTracker.reset();
-
-              // Update the content
               this.updateContent(flowTracker);
-
-              // Show confirmation message
-              vscode.window.showInformationMessage(
-                "Flow metrics have been reset"
-              );
+              vscode.window.showInformationMessage("Flow metrics have been reset");
             } catch (error) {
               console.error("Error resetting flow metrics:", error);
-              vscode.window.showErrorMessage(
-                "An error occurred while resetting flow metrics."
-              );
+              vscode.window.showErrorMessage("An error occurred while resetting flow metrics.");
+            }
+            break;
+          case "logout":
+            try {
+              await logout();
+              vscode.window.showInformationMessage("Logged out successfully");
+            } catch (error) {
+              console.error("Error logging out:", error);
+              vscode.window.showErrorMessage("An error occurred while logging out.");
             }
             break;
         }
@@ -345,6 +517,7 @@ class FlowStateWebview {
                     </div>
                     <div class="actions">
                         <button class="button secondary-button" onclick="resetMetrics()">Reset Session</button>
+                              <button class="button primary-button" onclick="logout()">Logout</button>
                     </div>
                 </div>
 
@@ -542,6 +715,12 @@ class FlowStateWebview {
                 function resetMetrics() {
                     vscode.postMessage({
                         command: 'reset'
+                    });
+                }
+
+                function logout() {
+                    vscode.postMessage({
+                        command: 'logout'
                     });
                 }
 
@@ -1123,8 +1302,24 @@ class FlowStateTracker {
   }
 }
 
-function activate(context) {
+let extensionContext;
+
+
+async function activate(context) {
+
+  extensionContext = context;
   console.log("Flow state detection extension is now active");
+
+
+  const isAuthenticated = await authenticateUser();
+
+  if (!isAuthenticated) {
+    vscode.window.showErrorMessage(
+      "You must log in to use this extension. Reload the window to try again."
+    );
+    return; // Exit if authentication fails
+  }
+
 
   const flowTracker = new FlowStateTracker();
   const webview = new FlowStateWebview(context);
