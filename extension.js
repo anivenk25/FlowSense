@@ -1725,7 +1725,7 @@ class FlowStateTracker {
 
         const data = await response.json();
         if (response.ok) {
-            this.focusScore = data.focus_score;
+          this.focusScore = data["Gradient Boosting Regression"];
             console.log("Focus score from API:", this.focusScore);
         } else {
             console.error("API Error: ", data);
