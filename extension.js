@@ -1,5 +1,226 @@
 const vscode = require("vscode");
 
+// Function to create a team
+async function createTeam() {
+  const teamName = await vscode.window.showInputBox({
+    prompt: "Enter the team name",
+    ignoreFocusOut: true,
+  });
+
+  if (!teamName) {
+    vscode.window.showErrorMessage("Team name is required!");
+    return false;
+  }
+
+  const user = extensionContext.globalState.get('userToken');
+      
+  // Extract just the user ID from the user object
+  const creatorId = user?.id || user?._id;
+
+  if (!creatorId) {
+    console.error("No user ID found!");
+    return;
+  }
+
+  try {
+    const response = await fetch("http://localhost:5000/api/teams", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ name: teamName, creatorId }),
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json();
+      const errorMessage = errorData.message || "Failed to create team.";
+      vscode.window.showErrorMessage(errorMessage);
+      return false;
+    }
+
+    const data = await response.json();
+    vscode.window.showInformationMessage(`Team "${teamName}" created successfully!`);
+    return true;
+  } catch (error) {
+    console.error("Error creating team:", error);
+    vscode.window.showErrorMessage("Failed to create team. Please try again.");
+    return false;
+  }
+}
+
+// Function to add a member to a team
+async function addTeamMember() {
+  const teamName = await vscode.window.showInputBox({
+    prompt: "Enter the team name",
+    ignoreFocusOut: true,
+  });
+
+  if (!teamName) {
+    vscode.window.showErrorMessage("Team name is required!");
+    return false;
+  }
+
+  const username = await vscode.window.showInputBox({
+    prompt: "Enter the username of the member to add",
+    ignoreFocusOut: true,
+  });
+
+  if (!username) {
+    vscode.window.showErrorMessage("Username is required!");
+    return false;
+  }
+
+  const user = extensionContext.globalState.get('userToken');
+      
+  // Extract just the user ID from the user object
+  const userId = user?.id || user?._id;
+
+  if (!userId) {
+    console.error("No user ID found!");
+    return;
+  }
+
+  try {
+    const response = await fetch("http://localhost:5000/api/teams/add", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ teamName, username, userId }),
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json();
+      const errorMessage = errorData.message || "Failed to add member to team.";
+      vscode.window.showErrorMessage(errorMessage);
+      return false;
+    }
+
+    const data = await response.json();
+    vscode.window.showInformationMessage(`User "${username}" added to team "${teamName}"!`);
+    return true;
+  } catch (error) {
+    console.error("Error adding member to team:", error);
+    vscode.window.showErrorMessage("Failed to add member to team. Please try again.");
+    return false;
+  }
+}
+
+// Function to remove a member from a team
+async function removeTeamMember() {
+  const teamName = await vscode.window.showInputBox({
+    prompt: "Enter the team name",
+    ignoreFocusOut: true,
+  });
+
+  if (!teamName) {
+    vscode.window.showErrorMessage("Team name is required!");
+    return false;
+  }
+
+  const username = await vscode.window.showInputBox({
+    prompt: "Enter the username of the member to remove",
+    ignoreFocusOut: true,
+  });
+
+  if (!username) {
+    vscode.window.showErrorMessage("Username is required!");
+    return false;
+  }
+
+  const user = extensionContext.globalState.get('userToken');
+      
+  // Extract just the user ID from the user object
+  const userId = user?.id || user?._id;
+
+  if (!userId) {
+    console.error("No user ID found!");
+    return;
+  }
+  
+  try {
+    const response = await fetch("http://localhost:5000/api/teams/remove", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ teamName, username, userId }),
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json();
+      const errorMessage = errorData.message || "Failed to remove member from team.";
+      vscode.window.showErrorMessage(errorMessage);
+      return false;
+    }
+
+    const data = await response.json();
+    vscode.window.showInformationMessage(`User "${username}" removed from team "${teamName}"!`);
+    return true;
+  } catch (error) {
+    console.error("Error removing member from team:", error);
+    vscode.window.showErrorMessage("Failed to remove member from team. Please try again.");
+    return false;
+  }
+}
+
+// Function to fetch team details
+async function fetchTeamDetails() {
+  // Get the user object from globalState
+  const user = extensionContext.globalState.get('userToken');
+
+  // Extract just the user ID from the user object
+  const userId = user?.id || user?._id;
+
+  if (!userId) {
+    vscode.window.showErrorMessage("User ID not found. Please log in again.");
+    return false;
+  }
+
+  try {
+    // Append userId as a query parameter
+    const response = await fetch(`http://localhost:5000/api/user-teams?userId=${encodeURIComponent(userId)}`, {
+      method: "GET",
+      headers: {
+        "Content-Type": "application/json",
+      },
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json();
+      const errorMessage = errorData.message || "Failed to fetch teams.";
+      vscode.window.showErrorMessage(errorMessage);
+      return false;
+    }
+
+    const data = await response.json();
+    const teams = data.teams;
+
+    if (teams.length === 0) {
+      vscode.window.showInformationMessage("You are not a member of any teams.");
+      return true;
+    }
+
+    // Display team details in a formatted message
+    const teamDetails = teams
+      .map(
+        (team) =>
+          `Team: ${team.name}\nMembers: ${team.members
+            .map((member) => `${member.username} (${member.email})`)
+            .join(", ")}`
+      )
+      .join("\n\n");
+
+    vscode.window.showInformationMessage(`Your Teams:\n\n${teamDetails}`);
+    return true;
+  } catch (error) {
+    console.error("Error fetching user teams:", error);
+    vscode.window.showErrorMessage("Failed to fetch teams. Please try again.");
+    return false;
+  }
+}
+
+
 
 async function registerUser() {
   const username = await vscode.window.showInputBox({
@@ -50,10 +271,11 @@ async function registerUser() {
     }
 
     const data = await response.json();
-    const { token } = data;
+    const { token,user } = data;
 
     // Store the token
     await extensionContext.globalState.update('authToken', token);
+    await extensionContext.globalState.update('userToken', user);
 
     vscode.window.showInformationMessage(`Welcome, ${username}! Registration successful.`);
     return true;
@@ -108,7 +330,6 @@ async function authenticateUser() {
     return await registerUser();
   }
 
-  // Rest of the existing login logic...
   const email = await vscode.window.showInputBox({
     prompt: "Enter your email",
     ignoreFocusOut: true,
@@ -151,6 +372,7 @@ async function authenticateUser() {
 
     // Store the token
     await extensionContext.globalState.update('authToken', token);
+    await extensionContext.globalState.update('userToken', user);
 
     vscode.window.showInformationMessage(`Welcome back, ${user.username}!`);
     return true;
@@ -289,6 +511,47 @@ class FlowStateWebview {
             } catch (error) {
               console.error("Error logging out:", error);
               vscode.window.showErrorMessage("An error occurred while logging out.");
+            }
+            break;
+          case "createTeam":
+            try {
+              const success = await createTeam();
+              if (success) {
+                this.updateContent(flowTracker);
+              }
+            } catch (error) {
+              console.error("Error creating team:", error);
+              vscode.window.showErrorMessage("An error occurred while creating the team.");
+            }
+            break;
+          case "addTeamMember":
+            try {
+              const success = await addTeamMember();
+              if (success) {
+                this.updateContent(flowTracker);
+              }
+            } catch (error) {
+              console.error("Error adding team member:", error);
+              vscode.window.showErrorMessage("An error occurred while adding the team member.");
+            }
+            break;
+          case "removeTeamMember":
+            try {
+              const success = await removeTeamMember();
+              if (success) {
+                this.updateContent(flowTracker);
+              }
+            } catch (error) {
+              console.error("Error removing team member:", error);
+              vscode.window.showErrorMessage("An error occurred while removing the team member.");
+            }
+            break;
+          case "viewTeam":
+            try {
+              await fetchTeamDetails();
+            } catch (error) {
+              console.error("Error viewing team details:", error);
+              vscode.window.showErrorMessage("An error occurred while fetching team details.");
             }
             break;
         }
@@ -504,6 +767,25 @@ class FlowStateWebview {
                     background-color: var(--vscode-badge-background);
                     color: var(--vscode-badge-foreground);
                 }
+                     .team-actions {
+                    display: grid;
+                    grid-template-columns: repeat(2, 1fr);
+                    gap: 10px;
+                    margin-top: 20px;
+                }
+                .team-button {
+                    padding: 10px;
+                    border: 1px solid var(--vscode-button-background);
+                    border-radius: 6px;
+                    background-color: transparent;
+                    color: var(--vscode-button-background);
+                    cursor: pointer;
+                    transition: all 0.2s;
+                }
+                .team-button:hover {
+                    background-color: var(--vscode-button-background);
+                    color: var(--vscode-button-foreground);
+                }
             </style>
         </head>
         <body>
@@ -518,6 +800,19 @@ class FlowStateWebview {
                     <div class="actions">
                         <button class="button secondary-button" onclick="resetMetrics()">Reset Session</button>
                               <button class="button primary-button" onclick="logout()">Logout</button>
+                    </div>
+                </div>
+
+                  <div class="metric-card">
+                    <div class="metric-header">
+                        <div class="metric-title">Team Management</div>
+                        <div class="metric-icon">👥</div>
+                    </div>
+                    <div class="team-actions">
+                        <button class="team-button" onclick="createTeam()">Create Team</button>
+                        <button class="team-button" onclick="viewTeam()">View Team</button>
+                        <button class="team-button" onclick="addTeamMember()">Add Member</button>
+                        <button class="team-button" onclick="removeTeamMember()">Remove Member</button>
                     </div>
                 </div>
 
@@ -709,25 +1004,35 @@ class FlowStateWebview {
                 </div>
             </div>
 
-            <script>
+              <script>
                 const vscode = acquireVsCodeApi();
                 
                 function resetMetrics() {
-                    vscode.postMessage({
-                        command: 'reset'
-                    });
+                    vscode.postMessage({ command: 'reset' });
                 }
 
                 function logout() {
-                    vscode.postMessage({
-                        command: 'logout'
-                    });
+                    vscode.postMessage({ command: 'logout' });
+                }
+
+                function createTeam() {
+                    vscode.postMessage({ command: 'createTeam' });
+                }
+
+                function addTeamMember() {
+                    vscode.postMessage({ command: 'addTeamMember' });
+                }
+
+                function removeTeamMember() {
+                    vscode.postMessage({ command: 'removeTeamMember' });
+                }
+
+                function viewTeam() {
+                    vscode.postMessage({ command: 'viewTeam' });
                 }
 
                 setInterval(() => {
-                    vscode.postMessage({
-                        command: 'refresh'
-                    });
+                    vscode.postMessage({ command: 'refresh' });
                 }, 1000);
             </script>
         </body>
@@ -860,15 +1165,28 @@ class FlowStateTracker {
     };
   }
 
+  
+
   async saveSessionToDatabase(flowTracker) {
     const metrics = flowTracker.getMetrics();
     const errorSummary = flowTracker.getErrorSummary();
+
+    const user = extensionContext.globalState.get('userToken');
+      
+    // Extract just the user ID from the user object
+    const userId = user?.id || user?._id;
+
+    if (!userId) {
+      console.error("No user ID found!");
+      return;
+    }
+
 
     console.log("Session data to be saved:", metrics);
 
     const sessionData = {
       timestamp: new Date(),
-      userId: this.userId || "123",
+      userId: userId,
       focusScore: metrics.focusScore || 0,
       currentStreak: metrics.currentStreak || 0,
       longestStreak: metrics.longestStreak || 0,
@@ -1496,16 +1814,25 @@ async function activate(context) {
     vscode.workspace.onDidSaveTextDocument(async (document) => {
       // Await the result of the analyzeCodeFromEditor function
       const analysis = await analyzeCodeFromEditor();
-
+  
       // If no analysis result is returned (in case of error or no editor), exit early
       if (!analysis) {
         console.error("No analysis result found!");
         return;
       }
-
-
+  
+      const user = extensionContext.globalState.get('userToken');
+      
+      // Extract just the user ID from the user object
+      const userId = user?.id || user?._id;
+  
+      if (!userId) {
+        console.error("No user ID found!");
+        return;
+      }
+  
       const payload = {
-        userId: "12345",
+        userId: userId, // Now sending just the ID string
         language: document.languageId,
         problem: {
           type: analysis.problem.type,
@@ -1526,8 +1853,7 @@ async function activate(context) {
           duplication: analysis.quality.duplication || 0,
         },
       };
-
-
+  
       try {
         const response = await fetch("http://localhost:5000/api/analysis", {
           method: "POST",
@@ -1536,10 +1862,9 @@ async function activate(context) {
           },
           body: JSON.stringify(payload),
         });
-
-
+  
         const responseText = await response.text();
-
+  
         // Parse the response only if it's JSON
         if (response.ok) {
           try {
