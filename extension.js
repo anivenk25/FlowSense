@@ -198,27 +198,32 @@ async function fetchTeamDetails() {
 
     if (teams.length === 0) {
       vscode.window.showInformationMessage("You are not a member of any teams.");
-      return true;
+      return false;
     }
 
-    // Display team details in a formatted message
+    // Format team details for better readability in the VSCode notification
     const teamDetails = teams
       .map(
-        (team) =>
-          `Team: ${team.name}\nMembers: ${team.members
-            .map((member) => `${member.username} (${member.email})`)
-            .join(", ")}`
+        (team) => `
+      **Team: ${team.name}**
+      Members:
+      ${team.members
+        .map((member) => `- ${member.username} (${member.email})`)
+        .join("\n")}
+      `
       )
       .join("\n\n");
 
+    // Display the formatted team details in a notification
     vscode.window.showInformationMessage(`Your Teams:\n\n${teamDetails}`);
-    return true;
+    return teamDetails;
   } catch (error) {
     console.error("Error fetching user teams:", error);
     vscode.window.showErrorMessage("Failed to fetch teams. Please try again.");
-    return false;
+    return null;
   }
 }
+
 
 
 
@@ -451,6 +456,34 @@ class FlowStateWebview {
     this.updateInterval = null;
   }
 
+  async fetchTeamDetails() {
+    try {
+      const user = this.context.globalState.get('userToken');
+      const userId = user?.id || user?._id;
+
+      if (!userId) {
+        return null;
+      }
+
+      const response = await fetch(`http://localhost:5000/api/user-teams?userId=${encodeURIComponent(userId)}`, {
+        method: "GET",
+        headers: {
+          "Content-Type": "application/json",
+        },
+      });
+
+      if (!response.ok) {
+        return null;
+      }
+
+      const data = await response.json();
+      return data.teams;
+    } catch (error) {
+      console.error("Error fetching team details:", error);
+      return null;
+    }
+  }
+
   createOrShowPanel(flowTracker) {
     const columnToShowIn = vscode.window.activeTextEditor
       ? vscode.window.activeTextEditor.viewColumn
@@ -561,11 +594,12 @@ class FlowStateWebview {
     );
   }
 
-  updateContent(flowTracker) {
+  async updateContent(flowTracker) {
     if (!this.panel) return;
 
     const metrics = flowTracker.getMetrics();
-    this.panel.webview.html = this.getWebviewContent(metrics);
+    const teamDetails = await this.fetchTeamDetails(); // Get team details
+    this.panel.webview.html = this.getWebviewContent(metrics, teamDetails);
 
     if (metrics.needsBreak) {
       flowTracker.breakSuggested = true;
@@ -585,8 +619,37 @@ class FlowStateWebview {
     }
   }
 
-  getWebviewContent(metrics) {
+  getWebviewContent(metrics,teams) {
     const errorSummary = metrics.getErrorSummary();
+
+    const teamsSection = teams ? `
+      <div class="teams-section">
+        ${teams.map(team => `
+          <div class="team-card">
+            <div class="team-header">
+              <h3>${team.name}</h3>
+              <span class="team-creator">Created by: ${
+                team.members.find(m => m._id === team.creator)?.username || 'Unknown'
+              }</span>
+            </div>
+            <div class="team-members">
+              <h4>Members:</h4>
+              <ul>
+                ${team.members.map(member => `
+                  <li>
+                    <span class="member-name">${member.username}</span>
+                    <span class="member-email">${member.email}</span>
+                  </li>
+                `).join('')}
+              </ul>
+            </div>
+            <div class="team-meta">
+              <span class="team-date">Created: ${new Date(team.createdAt).toLocaleDateString()}</span>
+            </div>
+          </div>
+        `).join('')}
+      </div>
+    ` : '<p>No teams available</p>';
 
     return `<!DOCTYPE html>
         <html lang="en">
@@ -785,6 +848,81 @@ class FlowStateWebview {
                 .team-button:hover {
                     background-color: var(--vscode-button-background);
                     color: var(--vscode-button-foreground);
+                }
+                       .teams-section {
+                    display: grid;
+                    grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+                    gap: 20px;
+                    margin-top: 20px;
+                }
+                .team-card {
+                    background-color: var(--vscode-editor-background);
+                    border: 1px solid var(--vscode-panel-border);
+                    border-radius: 10px;
+                    padding: 20px;
+                    transition: transform 0.2s;
+                }
+                .team-card:hover {
+                    transform: translateY(-2px);
+                }
+                .team-header {
+                    display: flex;
+                    justify-content: space-between;
+                    align-items: center;
+                    margin-bottom: 15px;
+                    padding-bottom: 10px;
+                    border-bottom: 1px solid var(--vscode-panel-border);
+                }
+                .team-header h3 {
+                    margin: 0;
+                    color: var(--vscode-textLink-foreground);
+                }
+                .team-creator {
+                    font-size: 12px;
+                    opacity: 0.8;
+                }
+                .team-members {
+                    margin: 15px 0;
+                }
+                .team-members h4 {
+                    margin: 0 0 10px 0;
+                    font-size: 14px;
+                }
+                .team-members ul {
+                    list-style: none;
+                    padding: 0;
+                    margin: 0;
+                }
+                .team-members li {
+                    display: flex;
+                    justify-content: space-between;
+                    padding: 5px 0;
+                    font-size: 13px;
+                }
+                .member-email {
+                    opacity: 0.7;
+                    font-size: 12px;
+                }
+                .team-meta {
+                    margin-top: 15px;
+                    font-size: 12px;
+                    opacity: 0.7;
+                }
+                .teams-container {
+                    margin-top: 30px;
+                    padding: 20px;
+                    background-color: var(--vscode-editor-background);
+                    border-radius: 10px;
+                }
+                .teams-header {
+                    display: flex;
+                    justify-content: space-between;
+                    align-items: center;
+                    margin-bottom: 20px;
+                }
+                .teams-title {
+                    font-size: 20px;
+                    margin: 0;
                 }
             </style>
         </head>
@@ -1002,6 +1140,13 @@ class FlowStateWebview {
                         
                     </div>
                 </div>
+
+                 <div class="teams-container">
+                    <div class="teams-header">
+                        <h2 class="teams-title">Your Teams</h2>
+                    </div>
+                    ${teamsSection}
+                </div>
             </div>
 
               <script>
@@ -1031,6 +1176,7 @@ class FlowStateWebview {
                     vscode.postMessage({ command: 'viewTeam' });
                 }
 
+                // Auto-refresh every second
                 setInterval(() => {
                     vscode.postMessage({ command: 'refresh' });
                 }, 1000);
