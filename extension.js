@@ -1461,7 +1461,7 @@ class FlowStateTracker {
       functionLength: [],
       cyclomaticComplexity: [],
       dependencyCount: [],
-      cohesionScore: 100,
+      cohesionScore: 0,
       duplicateCode: 0,
     };
     this.codeQualityScore = 100;
