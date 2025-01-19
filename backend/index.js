@@ -5,12 +5,12 @@ const mongoose = require("mongoose");
 const FlowMetrics = require("./models/FlowMetrics"); // Path to your Mongoose model
 const CodeAnalysis = require("./models/CodeAnalysis");
 const jwt = require("jsonwebtoken");
-
+const cors = require("cors"); 
 
 
 const app = express();
 app.use(express.json());
-
+app.use(cors());
 // Connect to MongoDB
 mongoose
   .connect("mongodb+srv://mangarajanmol666:test123@cluster0.yq1bt.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0")
@@ -299,6 +299,33 @@ app.get("/api/user-teams", async (req, res) => {
     res.status(200).json({ teams });
   } catch (err) {
     res.status(500).json({ message: "Failed to fetch teams", error: err.message });
+  }
+});
+
+app.get('/focus-scores/:userId', async (req, res) => {
+  const { userId } = req.params;
+
+  try {
+    // Fetch all records for the given userId
+    const userMetrics = await FlowMetrics.find({ userId });
+
+    if (!userMetrics.length) {
+      return res.status(404).json({ message: 'No records found for the specified userId.' });
+    }
+
+    // Calculate the average focus score
+    const totalFocusScore = userMetrics.reduce((sum, metric) => sum + metric.focusScore, 0);
+    const averageFocusScore = totalFocusScore / userMetrics.length;
+
+    return res.status(200).json({
+      userId,
+      totalRecords: userMetrics.length,
+      averageFocusScore,
+      focusScores: userMetrics.map((metric) => metric.focusScore),
+    });
+  } catch (error) {
+    console.error('Error fetching focus scores:', error);
+    return res.status(500).json({ message: 'Internal Server Error', error: error.message });
   }
 });
 
