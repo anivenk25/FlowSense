@@ -302,8 +302,8 @@ app.get("/api/user-teams", async (req, res) => {
   }
 });
 
-app.get('/focus-scores/:userId', async (req, res) => {
-  const { userId } = req.params;
+app.get('/api/focus-scores', async (req, res) => {
+  const { userId } = req.query;
 
   try {
     // Fetch all records for the given userId
@@ -319,15 +319,222 @@ app.get('/focus-scores/:userId', async (req, res) => {
 
     return res.status(200).json({
       userId,
-      totalRecords: userMetrics.length,
-      averageFocusScore,
-      focusScores: userMetrics.map((metric) => metric.focusScore),
+      averageFocusScore
     });
   } catch (error) {
     console.error('Error fetching focus scores:', error);
     return res.status(500).json({ message: 'Internal Server Error', error: error.message });
   }
 });
+
+app.get('/api/quality-scores', async (req, res) => {
+  const { userId } = req.query;
+
+  try {
+    // Fetch all records for the given userId
+    const userMetrics = await CodeAnalysis.find({ userId });
+
+    console.log('userMetrics:', userMetrics);
+
+    if (!userMetrics.length) {
+      return res.status(404).json({ message: 'No records found for the specified userId.' });
+    }
+
+    // Initialize variables to calculate the averages
+    let totalReadability = 0;
+    let totalMaintainability = 0;
+    let totalModularity = 0;
+    let totalDocumentation = 0;
+    let totalErrorHandling = 0;
+    let totalDuplication = 0;
+
+    // Loop through the records and sum up each quality attribute
+    userMetrics.forEach(metric => {
+      totalReadability += metric.quality.readability || 0;
+      totalMaintainability += metric.quality.maintainability || 0;
+      totalModularity += metric.quality.modularity || 0;
+      totalDocumentation += metric.quality.documentation || 0;
+      totalErrorHandling += metric.quality.errorHandling || 0;
+      totalDuplication += metric.quality.duplication || 0;
+    });
+
+    // Calculate the average for each quality attribute
+    const avgReadability = totalReadability / userMetrics.length;
+    const avgMaintainability = totalMaintainability / userMetrics.length;
+    const avgModularity = totalModularity / userMetrics.length;
+    const avgDocumentation = totalDocumentation / userMetrics.length;
+    const avgErrorHandling = totalErrorHandling / userMetrics.length;
+    const avgDuplication = totalDuplication / userMetrics.length;
+
+    // Calculate the final average quality score by averaging the individual averages
+    const finalAverageQualityScore = (avgReadability + avgMaintainability + avgModularity + avgDocumentation + avgErrorHandling + avgDuplication) / 6;
+
+    return res.status(200).json({
+      userId,
+      avgReadability,
+      avgMaintainability,
+      avgModularity,
+      avgDocumentation,
+      avgErrorHandling,
+      avgDuplication,
+      finalAverageQualityScore,
+    });
+  } catch (error) {
+    console.error('Error fetching quality scores:', error);
+    return res.status(500).json({ message: 'Internal Server Error', error: error.message });
+  }
+});
+
+app.get('/api/code-languages', async (req, res) => {
+  const { userId } = req.query;
+
+  try {
+    // Fetch all records for the given userId
+    const userMetrics = await CodeAnalysis.find({ userId });
+
+    if (!userMetrics.length) {
+      return res.status(404).json({ message: 'No records found for the specified userId.' });
+    }
+
+    // Create an object to count the occurrences of each language
+    const languageCount = {};
+
+    // Loop through the user metrics and count the occurrences of each language
+    userMetrics.forEach(metric => {
+      const language = metric.language;
+      if (language) {
+        if (languageCount[language]) {
+          languageCount[language]++;
+        } else {
+          languageCount[language] = 1;
+        }
+      }
+    });
+
+    // Convert the languageCount object to an array of [language, count] pairs
+    const languageArray = Object.entries(languageCount);
+
+    // Sort the languages by the count in descending order
+    const sortedLanguages = languageArray.sort((a, b) => b[1] - a[1]);
+
+    // Prepare the response with the top 4 sorted languages
+    const topLanguages = sortedLanguages.slice(0, 4).map(([language, count]) => ({
+      language,
+      usageCount: count
+    }));
+
+    return res.status(200).json({
+      userId,
+      topLanguages,
+    });
+  } catch (error) {
+    console.error('Error fetching code languages:', error);
+    return res.status(500).json({ message: 'Internal Server Error', error: error.message });
+  }
+});
+
+
+
+
+const moment = require('moment');  // You may need to install moment.js using 'npm install moment'
+
+app.get('/api/session-duration', async (req, res) => {
+  const { userId } = req.query;
+
+  try {
+    // Get the start and end of today (midnight to now)
+    const startOfDay = moment().startOf('day').toDate();
+    const endOfDay = moment().endOf('day').toDate();
+
+    // Fetch all records for the given userId where the timestamp is within today's range
+    const userMetrics = await FlowMetrics.find({
+      userId,
+      timestamp: { $gte: startOfDay, $lte: endOfDay }
+    });
+
+    if (!userMetrics.length) {
+      return res.status(404).json({ message: 'No records found for today.' });
+    }
+
+    // Calculate the total session duration (assuming you are using 'sessionDuration' field or 'focusScore')
+    const totalSessionDuration = userMetrics.reduce((sum, metric) => sum + metric.sessionDuration, 0);
+    const averageSessionDuration = totalSessionDuration / userMetrics.length;
+
+    return res.status(200).json({
+      userId,
+      averageSessionDuration
+    });
+  } catch (error) {
+    console.error('Error fetching session durations:', error);
+    return res.status(500).json({ message: 'Internal Server Error', error: error.message });
+  }
+});
+
+
+app.get('/api/productivity-status', async (req, res) => {
+  const { userId } = req.query;
+
+  try {
+    // Get the start and end of the past week (7 days ago to now)
+    const startOfWeek = moment().subtract(7, 'days').startOf('day').toDate();
+    const endOfWeek = moment().endOf('day').toDate();
+
+    // Fetch all records for the given userId where the timestamp is within the past week
+    const userMetrics = await FlowMetrics.find({
+      userId,
+      timestamp: { $gte: startOfWeek, $lte: endOfWeek }
+    });
+
+    if (!userMetrics.length) {
+      return res.status(404).json({ message: 'No records found for the past week.' });
+    }
+
+    // Define productivity thresholds (these can be adjusted)
+    const { high, medium, low } = {high:80,medium:60,low:40};
+
+ 
+
+    // Create a map to store the counts for each status
+    const statusCounts = {
+      "Flow State 🚀": 0,
+      "In The Zone 💪": 0,
+      "Focused 🎯": 0,
+      "Getting Started 🌱": 0,
+    };
+
+    // Loop through the records and categorize each based on the focus score
+    userMetrics.forEach(metric => {
+      let status;
+      if (metric.focusScore >= high) {
+        status = "Flow State 🚀";
+      } else if (metric.focusScore >= medium) {
+        status = "In The Zone 💪";
+      } else if (metric.focusScore >= low) {
+        status = "Focused 🎯";
+      } else {
+        status = "Getting Started 🌱";
+      }
+
+      // Increment the corresponding status count
+      statusCounts[status]++;
+    });
+
+    // Find the status with the highest count
+    const mostFrequentStatus = Object.keys(statusCounts).reduce((maxStatus, status) => {
+      return statusCounts[status] > statusCounts[maxStatus] ? status : maxStatus;
+    });
+
+    return res.status(200).json({
+      userId,
+      mostFrequentStatus,
+      statusCounts,
+    });
+  } catch (error) {
+    console.error('Error fetching productivity status:', error);
+    return res.status(500).json({ message: 'Internal Server Error', error: error.message });
+  }
+});
+
 
 
 // Start the server
