@@ -175,7 +175,6 @@ async function removeTeamMember() {
   }
 }
 
-// Function to fetch team details
 async function fetchTeamDetails() {
   // Get the user object from globalState
   const user = extensionContext.globalState.get("userToken");
@@ -189,18 +188,14 @@ async function fetchTeamDetails() {
   }
 
   try {
-    // Append userId as a query parameter
-    const response = await fetch(
-      `http://localhost:5000/api/user-teams?userId=${encodeURIComponent(
-        userId
-      )}`,
-      {
-        method: "GET",
-        headers: {
-          "Content-Type": "application/json",
-        },
-      }
-    );
+    // Changed to POST request with userId in body
+    const response = await fetch("http://localhost:5000/api/user-teams", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ userId }),
+    });
 
     if (!response.ok) {
       const errorData = await response.json();
@@ -223,17 +218,15 @@ async function fetchTeamDetails() {
     const teamDetails = teams
       .map(
         (team) => `
-      **Team: ${team.name}**
-      Members:
-      ${team.members
-        .map((member) => `- ${member.username} (${member.email})`)
-        .join("\n")}
-      `
+Team: ${team.name}
+Members:
+${team.members.map((member) => `- ${member.username} (${member.email})`).join("\n")}
+`
       )
-      .join("\n\n");
+      .join("\n");
 
     // Display the formatted team details in a notification
-    vscode.window.showInformationMessage(`Your Teams:\n\n${teamDetails}`);
+    vscode.window.showInformationMessage(teamDetails);
     return teamDetails;
   } catch (error) {
     console.error("Error fetching user teams:", error);
@@ -241,7 +234,6 @@ async function fetchTeamDetails() {
     return null;
   }
 }
-
 async function registerUser() {
   const username = await vscode.window.showInputBox({
     prompt: "Enter your username",
@@ -453,6 +445,7 @@ async function analyzeCodeFromEditor() {
       "Code analysis completed! Check the console for details."
     );
 
+
     return analysisResults; // Return the analysis results
   } catch (error) {
     console.error("Error analyzing code:", error);
@@ -479,17 +472,13 @@ class FlowStateWebview {
         return null;
       }
 
-      const response = await fetch(
-        `http://localhost:5000/api/user-teams?userId=${encodeURIComponent(
-          userId
-        )}`,
-        {
-          method: "GET",
-          headers: {
-            "Content-Type": "application/json",
-          },
-        }
-      );
+      const response = await fetch("http://localhost:5000/api/user-teams", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ userId }),
+      });
 
       if (!response.ok) {
         return null;
@@ -2218,6 +2207,12 @@ async function activate(context) {
           errorHandling: analysis.quality.errorHandling,
           duplication: analysis.quality.duplication || 0,
         },
+        errors: {
+          typeErrorRisk: analysis.errors.typeErrorRisk || 0,
+          referenceErrorRisk: analysis.errors.referenceErrorRisk || 0,
+          syntaxErrorRisk: analysis.errors.syntaxErrorRisk || 0,
+          mostLikelyError: analysis.errors.mostLikelyError || 'Unknown'
+        }
       };
 
       try {

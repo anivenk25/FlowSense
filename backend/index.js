@@ -281,8 +281,8 @@ app.get("/api/teams", async (req, res) => {
   }
 });
 
-app.get("/api/user-teams", async (req, res) => {
-  const { userId } = req.query;
+app.post("/api/user-teams", async (req, res) => {
+  const { userId } = req.body;
 
   if (!userId) {
     return res.status(400).json({ message: "User ID is required" });
@@ -385,6 +385,80 @@ app.get('/api/quality-scores', async (req, res) => {
   }
 });
 
+app.get('/api/error-analysis', async (req, res) => {
+  const { userId } = req.query;
+  
+  try {
+    // Create start and end of the current date using moment
+    const startDate = moment().startOf('day').toDate();
+    const endDate = moment().endOf('day').toDate();
+
+    // Find all analyses for the user on the current date
+    const analyses = await CodeAnalysis.find({
+      userId,
+      createdAt: {
+        $gte: startDate,
+        $lte: endDate
+      }
+    });
+
+    if (!analyses.length) {
+      return res.status(404).json({
+        message: 'No analyses found for today.'
+      });
+    }
+
+    // Initialize variables for error calculations
+    let totalTypeErrorRisk = 0;
+    let totalReferenceErrorRisk = 0;
+    let totalSyntaxErrorRisk = 0;
+    let errorTypeCounts = {
+      TypeError: 0,
+      ReferenceError: 0,
+      SyntaxError: 0,
+      Unknown: 0
+    };
+
+    // Calculate totals and count error types
+    analyses.forEach(analysis => {
+      totalTypeErrorRisk += analysis.errors.typeErrorRisk || 0;
+      totalReferenceErrorRisk += analysis.errors.referenceErrorRisk || 0;
+      totalSyntaxErrorRisk += analysis.errors.syntaxErrorRisk || 0;
+      
+      // Count most likely error types
+      const mostLikelyError = analysis.errors.mostLikelyError || 'Unknown';
+      errorTypeCounts[mostLikelyError]++;
+    });
+
+    // Calculate averages
+    const totalAnalyses = analyses.length;
+    const response = {
+      date: moment().format('YYYY-MM-DD'),
+      userId,
+      totalAnalyses,
+      averageErrors: {
+        typeErrorRisk: totalTypeErrorRisk / totalAnalyses,
+        referenceErrorRisk: totalReferenceErrorRisk / totalAnalyses,
+        syntaxErrorRisk: totalSyntaxErrorRisk / totalAnalyses
+      },
+      errorTypeDistribution: {
+        TypeError: (errorTypeCounts.TypeError / totalAnalyses) * 100,
+        ReferenceError: (errorTypeCounts.ReferenceError / totalAnalyses) * 100,
+        SyntaxError: (errorTypeCounts.SyntaxError / totalAnalyses) * 100,
+        Unknown: (errorTypeCounts.Unknown / totalAnalyses) * 100
+      }
+    };
+
+    return res.status(200).json(response);
+  } catch (error) {
+    console.error('Error fetching error analysis:', error);
+    return res.status(500).json({
+      message: 'Internal Server Error',
+      error: error.message
+    });
+  }
+});
+
 app.get('/api/code-languages', async (req, res) => {
   const { userId } = req.query;
 
@@ -432,6 +506,41 @@ app.get('/api/code-languages', async (req, res) => {
     return res.status(500).json({ message: 'Internal Server Error', error: error.message });
   }
 });
+
+app.post("/api/latest_error_summary", async (req, res) => {
+  const { userId } = req.body;
+
+  if (!userId) {
+    return res.status(400).json({ message: "User ID is required." });
+  }
+
+  try {
+    // Query the latest document for the userId
+    const latestData = await FlowMetrics.findOne(
+      { userId: userId },
+      null, // No specific fields excluded
+      { sort: { timestamp: -1 } } // Sort by timestamp in descending order
+    );
+
+    if (!latestData) {
+      return res.status(404).json({ message: "No data found for the specified user ID." });
+    }
+
+    // Map the result to include the complete errorSummary
+    const result = {
+      _id: latestData._id,
+      timestamp: latestData.timestamp,
+      errorSummary: latestData.errorSummary || {}, // Return the complete errorSummary
+    };
+
+    // Return the response
+    return res.status(200).json(result);
+  } catch (error) {
+    console.error("Error fetching latest error summary:", error);
+    return res.status(500).json({ message: "Internal Server Error", error: error.message });
+  }
+});
+
 
 
 

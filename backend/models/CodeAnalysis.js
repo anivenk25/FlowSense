@@ -82,6 +82,31 @@ const codeAnalysisSchema = new mongoose.Schema({
       max: 100,
       default: 0
     }
+  },
+  errors: {
+    typeErrorRisk: {
+      type: Number,
+      min: 0,
+      max: 100,
+      default: 0
+    },
+    referenceErrorRisk: {
+      type: Number,
+      min: 0,
+      max: 100,
+      default: 0
+    },
+    syntaxErrorRisk: {
+      type: Number,
+      min: 0,
+      max: 100,
+      default: 0
+    },
+    mostLikelyError: {
+      type: String,
+      enum: ['TypeError', 'ReferenceError', 'SyntaxError', 'Unknown'],
+      default: 'Unknown'
+    }
   }
 }, {
   timestamps: true
